@@ -128,15 +128,21 @@ export async function GET(request: NextRequest) {
     const countResult = await pool.query(countQuery);
     const total = parseInt(countResult.rows[0].count);
 
-    return successResponse({
-      tournaments,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
+    return successResponse(
+      {
+        tournaments,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
       },
-    });
+      undefined,
+      200,
+      // Cache for 30 seconds, allow stale for 60 seconds while revalidating
+      { maxAge: 30, staleWhileRevalidate: 60, isPrivate: false }
+    );
   } catch (error) {
     console.error("Get tournaments error:", error);
     return serverErrorResponse(error);

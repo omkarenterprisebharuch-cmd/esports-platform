@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { TournamentWithHost } from "@/types";
+import { SkeletonTournamentGrid } from "@/components/ui/Skeleton";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
 
-    // Fetch all tournaments and user's registrations
+    // Fetch tournaments and registrations in parallel
     Promise.all([
       fetch("/api/tournaments", {
         headers: { Authorization: `Bearer ${token}` },
@@ -102,6 +103,8 @@ export default function DashboardPage() {
               src={tournament.tournament_banner_url}
               alt={tournament.tournament_name}
               fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              loading="lazy"
               className="object-cover"
             />
           ) : (
@@ -188,10 +191,19 @@ export default function DashboardPage() {
     );
   };
 
+  // Skeleton loading for better perceived performance
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-gray-900 border-t-transparent rounded-full"></div>
+      <div className="space-y-8">
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              🎮 Tournaments
+            </h2>
+            <div className="h-5 w-20 bg-gray-200 rounded animate-pulse" />
+          </div>
+          <SkeletonTournamentGrid count={6} />
+        </section>
       </div>
     );
   }

@@ -1,24 +1,14 @@
 import { NextRequest } from "next/server";
 import pool from "@/lib/db";
-import { hashPassword, generateToken } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
 import { generateOTP, storeOTP } from "@/lib/otp";
 import { sendOTPEmail } from "@/lib/email";
+import { storePendingRegistration } from "@/lib/pending-registrations";
 import {
   successResponse,
   errorResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
-
-// Temporary storage for pending registrations
-const pendingRegistrations = new Map<
-  string,
-  {
-    username: string;
-    email: string;
-    hashedPassword: string;
-    createdAt: number;
-  }
->();
 
 /**
  * POST /api/auth/send-otp
@@ -58,17 +48,11 @@ export async function POST(request: NextRequest) {
 
     // Store pending registration data temporarily
     const hashedPassword = await hashPassword(password);
-    pendingRegistrations.set(email.toLowerCase(), {
+    storePendingRegistration(email, {
       username,
       email,
       hashedPassword,
-      createdAt: Date.now(),
     });
-
-    // Auto-cleanup after 15 minutes
-    setTimeout(() => {
-      pendingRegistrations.delete(email.toLowerCase());
-    }, 15 * 60 * 1000);
 
     // Send OTP email
     await sendOTPEmail(email, otp, username);
@@ -80,6 +64,3 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse(error);
   }
 }
-
-// Export for use in verify-otp route
-export { pendingRegistrations };

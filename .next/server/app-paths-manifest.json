@@ -1,16 +1,11 @@
 {
-  "/api/auth/login/route": "app/api/auth/login/route.js",
   "/api/auth/me/route": "app/api/auth/me/route.js",
   "/api/teams/my-teams/route": "app/api/teams/my-teams/route.js",
   "/api/tournaments/route": "app/api/tournaments/route.js",
   "/api/registrations/my-registrations/route": "app/api/registrations/my-registrations/route.js",
-  "/api/tournaments/[id]/route": "app/api/tournaments/[id]/route.js",
-  "/api/tournaments/[id]/winners/route": "app/api/tournaments/[id]/winners/route.js",
-  "/api/registrations/room-credentials/[tournamentId]/route": "app/api/registrations/room-credentials/[tournamentId]/route.js",
-  "/api/tournaments/[id]/chat-participants/route": "app/api/tournaments/[id]/chat-participants/route.js",
+  "/page": "app/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
   "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
-  "/(dashboard)/admin/page": "app/(dashboard)/admin/page.js",
-  "/(dashboard)/tournament/[id]/page": "app/(dashboard)/tournament/[id]/page.js",
-  "/(dashboard)/tournaments/page": "app/(dashboard)/tournaments/page.js"
+  "/(dashboard)/tournaments/page": "app/(dashboard)/tournaments/page.js",
+  "/(dashboard)/admin/page": "app/(dashboard)/admin/page.js"
 }

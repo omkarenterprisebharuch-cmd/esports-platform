@@ -155,7 +155,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: applicationServerKey,
+      applicationServerKey: applicationServerKey as BufferSource,
     });
 
     console.log('[Push] New subscription created');
@@ -173,7 +173,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
           const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
           const newSub = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: applicationServerKey,
+            applicationServerKey: applicationServerKey as BufferSource,
           });
           console.log('[Push] Retry successful');
           return newSub;

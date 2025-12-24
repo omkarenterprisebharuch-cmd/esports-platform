@@ -19,7 +19,7 @@ export async function POST(
     return unauthorizedResponse("Invalid token");
   }
 
-  const userId = decoded.userId;
+  const userId = decoded.id;
 
   try {
     // Check if user is member of this team

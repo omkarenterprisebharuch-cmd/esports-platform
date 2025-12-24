@@ -1,23 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { TournamentWithHost } from "@/types";
-import ChatButton from "@/components/chat/ChatButton";
-import TournamentChatRoom from "@/components/chat/TournamentChatRoom";
-import { ChatProvider } from "@/contexts/ChatContext";
+import { LazyRoomCredentials } from "@/components/ui";
+import { SkeletonBanner, SkeletonStatsGrid, SkeletonDetails } from "@/components/ui/Skeleton";
+
+// Lazy load chat components - only loaded when user opens chat
+const ChatButton = dynamic(() => import("@/components/chat/ChatButton"), {
+  loading: () => <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />,
+  ssr: false,
+});
+
+const TournamentChatRoom = dynamic(() => import("@/components/chat/TournamentChatRoom"), {
+  loading: () => null,
+  ssr: false,
+});
+
+const ChatProvider = dynamic(
+  () => import("@/contexts/ChatContext").then(mod => ({ default: mod.ChatProvider })),
+  { ssr: false }
+);
 
 interface ChatParticipantsData {
   registeredUserIds: (number | string)[];
   tournamentEndDate: string;
-}
-
-interface RoomCredentials {
-  room_id: string | null;
-  room_password: string | null;
-  message?: string;
 }
 
 interface Winners {
@@ -29,23 +39,31 @@ interface Winners {
 export default function TournamentDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  
+  // Core data - fetched immediately (essential for page)
   const [tournament, setTournament] = useState<TournamentWithHost | null>(null);
   const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
-  const [roomCredentials, setRoomCredentials] = useState<RoomCredentials | null>(null);
-  const [winners, setWinners] = useState<Winners | null>(null);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  
+  // On-demand data - fetched only when user explicitly requests
+  const [winners, setWinners] = useState<Winners | null>(null);
+  const [winnersLoading, setWinnersLoading] = useState(false);
+  const [winnersExpanded, setWinnersExpanded] = useState(false);
+  
+  // Chat data - fetched only when chat is opened
   const [chatOpen, setChatOpen] = useState(false);
   const [chatParticipants, setChatParticipants] = useState<ChatParticipantsData | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [chatDataLoading, setChatDataLoading] = useState(false);
 
+  // Fetch only essential data on page load
+  // Winners, room credentials, and chat are loaded on-demand
   useEffect(() => {
     const token = localStorage.getItem("token");
 
+    // Only 2 API calls instead of 5+
     Promise.all([
       fetch(`/api/tournaments/${params.id}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -53,87 +71,105 @@ export default function TournamentDetailsPage() {
       fetch("/api/registrations/my-registrations", {
         headers: { Authorization: `Bearer ${token}` },
       }).then((res) => res.json()),
-      fetch(`/api/tournaments/${params.id}/winners`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((res) => res.json()),
     ])
-      .then(([tournamentData, registrationsData, winnersData]) => {
+      .then(([tournamentData, registrationsData]) => {
         if (tournamentData.success) {
           setTournament(tournamentData.data.tournament);
         }
-        // Check if user is registered for this tournament
+        
         const registrations = registrationsData.data?.registrations || [];
         const isRegistered = registrations.some(
           (reg: { tournament_id: string | number }) => String(reg.tournament_id) === String(params.id)
         );
         setIsAlreadyRegistered(isRegistered);
-
-        // Set winners data
-        if (winnersData.success && winnersData.data?.winners) {
-          setWinners(winnersData.data.winners);
-        }
-
-        // If registered, fetch room credentials
-        if (isRegistered) {
-          fetch(`/api/registrations/room-credentials/${params.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success) {
-                setRoomCredentials(data.data);
-              }
-            })
-            .catch(() => {
-              // Silently fail - room credentials may not be available yet
-            });
-
-          // Fetch chat participants for authenticated chat
-          fetch(`/api/tournaments/${params.id}/chat-participants`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success) {
-                setChatParticipants({
-                  registeredUserIds: data.data.registeredUserIds,
-                  tournamentEndDate: data.data.tournamentEndDate,
-                });
-              }
-            })
-            .catch(() => {
-              // Silently fail - chat may not be available
-            });
-        }
-
-        // Fetch current user ID
-        fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success) {
-              setCurrentUserId(data.data.id);
-            }
-          })
-          .catch(() => {});
       })
       .finally(() => setLoading(false));
   }, [params.id]);
 
+  // Fetch winners on demand when user expands the section
+  const fetchWinners = useCallback(async () => {
+    if (winners) return; // Already fetched
+    
+    setWinnersLoading(true);
+    const token = localStorage.getItem("token");
+    
+    try {
+      const res = await fetch(`/api/tournaments/${params.id}/winners`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      
+      if (data.success && data.data?.winners) {
+        setWinners(data.data.winners);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setWinnersLoading(false);
+    }
+  }, [params.id, winners]);
+
+  // Fetch chat data on demand when user opens chat
+  const fetchChatData = useCallback(async () => {
+    if (chatParticipants && currentUserId) return;
+    
+    setChatDataLoading(true);
+    const token = localStorage.getItem("token");
+    
+    try {
+      const [participantsRes, userRes] = await Promise.all([
+        fetch(`/api/tournaments/${params.id}/chat-participants`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      
+      const [participantsData, userData] = await Promise.all([
+        participantsRes.json(),
+        userRes.json(),
+      ]);
+      
+      if (participantsData.success) {
+        setChatParticipants({
+          registeredUserIds: participantsData.data.registeredUserIds,
+          tournamentEndDate: participantsData.data.tournamentEndDate,
+        });
+      }
+      
+      if (userData.success) {
+        setCurrentUserId(userData.data.id);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setChatDataLoading(false);
+    }
+  }, [params.id, chatParticipants, currentUserId]);
+
+  const handleOpenChat = async () => {
+    await fetchChatData();
+    setChatOpen(true);
+  };
+
+  const handleExpandWinners = async () => {
+    if (!winnersExpanded) {
+      await fetchWinners();
+    }
+    setWinnersExpanded(!winnersExpanded);
+  };
+
   const handleRegister = async () => {
     if (!tournament) return;
 
-    // For non-solo tournaments, redirect to registration page
     if (tournament.tournament_type !== "solo") {
       router.push(`/register-tournament/${tournament.id}`);
       return;
     }
 
-    // For solo tournaments, register directly
     setRegistering(true);
     setMessage(null);
-
     const token = localStorage.getItem("token");
 
     try {
@@ -153,7 +189,9 @@ export default function TournamentDetailsPage() {
           type: "success",
           text: `Successfully registered! Your slot number is #${data.data.slot_number}`,
         });
-        // Refresh tournament data
+        setIsAlreadyRegistered(true);
+        
+        // Refresh tournament data for updated team count
         const refreshRes = await fetch(`/api/tournaments/${params.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -205,8 +243,10 @@ export default function TournamentDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-gray-900 border-t-transparent rounded-full"></div>
+      <div className="max-w-4xl mx-auto space-y-6">
+        <SkeletonBanner />
+        <SkeletonStatsGrid />
+        <SkeletonDetails />
       </div>
     );
   }
@@ -232,13 +272,15 @@ export default function TournamentDetailsPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Banner */}
+      {/* Banner - Optimized with priority and sizes */}
       <div className="relative h-64 md:h-80 bg-gray-100 rounded-xl overflow-hidden mb-6">
         {tournament.tournament_banner_url ? (
           <Image
             src={tournament.tournament_banner_url}
             alt={tournament.tournament_name}
             fill
+            priority
+            sizes="(max-width: 768px) 100vw, 896px"
             className="object-cover"
           />
         ) : (
@@ -367,52 +409,68 @@ export default function TournamentDetailsPage() {
         </div>
       </div>
 
-      {/* Winners Section */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">🏆</span>
-          <h2 className="font-semibold text-gray-900">Tournament Winners</h2>
-        </div>
-
-        {winners && (winners.first || winners.second || winners.third) ? (
-          <div className="space-y-3">
-            {winners.first && (
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-300">
-                <span className="text-3xl">🥇</span>
-                <div>
-                  <p className="font-semibold text-gray-900">{winners.first}</p>
-                  <p className="text-sm text-gray-500">1st Place</p>
-                </div>
-              </div>
-            )}
-            {winners.second && (
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-300">
-                <span className="text-3xl">🥈</span>
-                <div>
-                  <p className="font-semibold text-gray-900">{winners.second}</p>
-                  <p className="text-sm text-gray-500">2nd Place</p>
-                </div>
-              </div>
-            )}
-            {winners.third && (
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300">
-                <span className="text-3xl">🥉</span>
-                <div>
-                  <p className="font-semibold text-gray-900">{winners.third}</p>
-                  <p className="text-sm text-gray-500">3rd Place</p>
-                </div>
-              </div>
-            )}
+      {/* Winners Section - Collapsible, loaded on demand */}
+      <div className="bg-white border border-gray-200 rounded-xl mb-6 overflow-hidden">
+        <button
+          onClick={handleExpandWinners}
+          className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏆</span>
+            <h2 className="font-semibold text-gray-900">Tournament Winners</h2>
           </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            <p className="text-4xl mb-2">🏅</p>
-            <p className="font-medium">Winners Not Announced Yet</p>
-            <p className="text-sm mt-1">
-              {tournament.status === "completed" || tournament.status === "ongoing"
-                ? "Results will be updated by the host soon."
-                : "Winners will be announced after the tournament ends."}
-            </p>
+          <span className={`transform transition-transform ${winnersExpanded ? 'rotate-180' : ''}`}>
+            ▼
+          </span>
+        </button>
+
+        {winnersExpanded && (
+          <div className="px-6 pb-6 border-t border-gray-100">
+            {winnersLoading ? (
+              <div className="py-8 text-center">
+                <div className="animate-spin w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full mx-auto" />
+              </div>
+            ) : winners && (winners.first || winners.second || winners.third) ? (
+              <div className="space-y-3 pt-4">
+                {winners.first && (
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-300">
+                    <span className="text-3xl">🥇</span>
+                    <div>
+                      <p className="font-semibold text-gray-900">{winners.first}</p>
+                      <p className="text-sm text-gray-500">1st Place</p>
+                    </div>
+                  </div>
+                )}
+                {winners.second && (
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-300">
+                    <span className="text-3xl">🥈</span>
+                    <div>
+                      <p className="font-semibold text-gray-900">{winners.second}</p>
+                      <p className="text-sm text-gray-500">2nd Place</p>
+                    </div>
+                  </div>
+                )}
+                {winners.third && (
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300">
+                    <span className="text-3xl">🥉</span>
+                    <div>
+                      <p className="font-semibold text-gray-900">{winners.third}</p>
+                      <p className="text-sm text-gray-500">3rd Place</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-4xl mb-2">🏅</p>
+                <p className="font-medium">Winners Not Announced Yet</p>
+                <p className="text-sm mt-1">
+                  {tournament.status === "completed" || tournament.status === "ongoing"
+                    ? "Results will be updated by the host soon."
+                    : "Winners will be announced after the tournament ends."}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -427,35 +485,17 @@ export default function TournamentDetailsPage() {
             View My Registrations
           </Link>
 
-          {/* Room Credentials */}
-          {roomCredentials && roomCredentials.room_id ? (
-            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-left">
-              <p className="font-semibold text-green-700 mb-2">🎮 Room Credentials</p>
-              <div className="space-y-1">
-                <p className="text-green-700">
-                  <span className="font-medium">Room ID:</span> {roomCredentials.room_id}
-                </p>
-                {roomCredentials.room_password && (
-                  <p className="text-green-700">
-                    <span className="font-medium">Password:</span> {roomCredentials.room_password}
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : roomCredentials?.message ? (
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-amber-700 text-sm">{roomCredentials.message}</p>
-            </div>
-          ) : null}
+          {/* Room Credentials - Loaded on demand when user clicks */}
+          <LazyRoomCredentials tournamentId={tournament.id} isRegistered={isAlreadyRegistered} />
 
-          {/* Chat Button */}
+          {/* Chat Button - Opens chat on demand */}
           <div className="mt-4">
             <ChatButton
               tournamentId={tournament.id}
               registrationStartDate={tournament.registration_start_date.toString()}
               tournamentEndDate={tournament.tournament_end_date.toString()}
               isRegistered={isAlreadyRegistered}
-              onClick={() => setChatOpen(true)}
+              onClick={handleOpenChat}
             />
           </div>
         </div>
@@ -488,8 +528,8 @@ export default function TournamentDetailsPage() {
         </div>
       )}
 
-      {/* Chat Modal */}
-      {isAlreadyRegistered && chatParticipants && currentUserId && (
+      {/* Chat Modal - Only rendered when opened and data is loaded */}
+      {chatOpen && isAlreadyRegistered && chatParticipants && currentUserId && (
         <ChatProvider>
           <TournamentChatRoom
             tournamentId={tournament.id}
@@ -501,6 +541,16 @@ export default function TournamentDetailsPage() {
             onClose={() => setChatOpen(false)}
           />
         </ChatProvider>
+      )}
+
+      {/* Chat loading indicator */}
+      {chatDataLoading && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 flex items-center gap-3">
+            <div className="animate-spin w-5 h-5 border-2 border-gray-900 border-t-transparent rounded-full" />
+            <span>Loading chat...</span>
+          </div>
+        </div>
       )}
     </div>
   );

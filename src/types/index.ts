@@ -26,7 +26,10 @@ export interface Team {
   id: number;
   team_name: string;
   team_code: string;
+  invite_code?: string; // Alias for team_code
   captain_id: number;
+  owner_id?: number; // Alias for captain_id
+  description?: string;
   total_members: number;
   max_members: number;
   member_count?: number; // Added for registration eligibility check

@@ -7,15 +7,25 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+interface CacheOptions {
+  /** Cache duration in seconds for browser/CDN caching */
+  maxAge?: number;
+  /** Stale-while-revalidate duration in seconds */
+  staleWhileRevalidate?: number;
+  /** Whether the response is private (user-specific) */
+  isPrivate?: boolean;
+}
+
 /**
- * Success response helper
+ * Success response helper with optional caching headers
  */
 export function successResponse<T>(
   data: T,
   message?: string,
-  status: number = 200
+  status: number = 200,
+  cacheOptions?: CacheOptions
 ): NextResponse<ApiResponse<T>> {
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       success: true,
       message,
@@ -23,6 +33,17 @@ export function successResponse<T>(
     },
     { status }
   );
+
+  // Add cache headers if specified
+  if (cacheOptions) {
+    const { maxAge = 0, staleWhileRevalidate = 0, isPrivate = true } = cacheOptions;
+    const cacheControl = isPrivate
+      ? `private, max-age=${maxAge}, stale-while-revalidate=${staleWhileRevalidate}`
+      : `public, max-age=${maxAge}, stale-while-revalidate=${staleWhileRevalidate}`;
+    response.headers.set("Cache-Control", cacheControl);
+  }
+
+  return response;
 }
 
 /**

@@ -16,10 +16,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/login/page.js"
     ],
-    "/api/auth/login/route": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/auth/login/route.js"
+      "static/chunks/app/page.js"
     ],
     "/(dashboard)/layout": [
       "static/chunks/webpack.js",
@@ -51,45 +51,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/registrations/my-registrations/route.js"
     ],
-    "/api/notifications/subscribe/route": [
+    "/(dashboard)/tournaments/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/notifications/subscribe/route.js"
+      "static/chunks/app/(dashboard)/tournaments/page.js"
     ],
     "/(dashboard)/admin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/admin/page.js"
-    ],
-    "/(dashboard)/tournament/[id]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/tournament/[id]/page.js"
-    ],
-    "/api/tournaments/[id]/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/tournaments/[id]/route.js"
-    ],
-    "/api/tournaments/[id]/winners/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/tournaments/[id]/winners/route.js"
-    ],
-    "/api/registrations/room-credentials/[tournamentId]/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/registrations/room-credentials/[tournamentId]/route.js"
-    ],
-    "/api/tournaments/[id]/chat-participants/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/tournaments/[id]/chat-participants/route.js"
-    ],
-    "/(dashboard)/tournaments/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/tournaments/page.js"
     ]
   }
 }

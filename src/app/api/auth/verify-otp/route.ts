@@ -2,15 +2,12 @@ import { NextRequest } from "next/server";
 import pool from "@/lib/db";
 import { generateToken } from "@/lib/auth";
 import { verifyOTP } from "@/lib/otp";
+import { getPendingRegistration, deletePendingRegistration } from "@/lib/pending-registrations";
 import {
   successResponse,
   errorResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
-
-// Import pending registrations from send-otp (in production, use Redis)
-// For now, we'll use a shared module approach
-import { pendingRegistrations } from "../send-otp/route";
 
 /**
  * POST /api/auth/verify-otp
@@ -32,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get pending registration data
-    const pendingData = pendingRegistrations.get(email.toLowerCase());
+    const pendingData = getPendingRegistration(email);
     if (!pendingData) {
       return errorResponse(
         "Registration session expired. Please start again."
@@ -47,7 +44,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Clean up pending registration
-    pendingRegistrations.delete(email.toLowerCase());
+    deletePendingRegistration(email);
 
     const user = result.rows[0];
     const token = generateToken(user);
