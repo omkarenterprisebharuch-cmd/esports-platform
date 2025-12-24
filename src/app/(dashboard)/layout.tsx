@@ -1,0 +1,271 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
+import { NotificationPrompt } from "@/components/notifications";
+
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  is_host: boolean;
+  is_admin?: boolean;
+  avatar_url?: string;
+}
+
+const menuItems = [
+  { icon: "🏠", label: "Dashboard", href: "/dashboard" },
+  { icon: "🏆", label: "Tournaments", href: "/tournaments" },
+  { icon: "👤", label: "Profile", href: "/profile" },
+  { icon: "👥", label: "My Teams", href: "/my-teams" },
+  { icon: "💰", label: "Wallet", href: "/wallet", disabled: true },
+];
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [user, setUser] = useState<User | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [teamsCount, setTeamsCount] = useState(0);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    // Fetch user info
+    fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setUser(data.data);
+        } else {
+          localStorage.removeItem("token");
+          router.push("/login");
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem("token");
+        router.push("/login");
+      });
+
+    // Fetch teams count
+    fetch("/api/teams/my-teams", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setTeamsCount(data.data.teams?.length || 0);
+        }
+      })
+      .catch(() => {});
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    router.push("/login");
+  };
+
+  const isAdminOrHost = user?.is_admin === true || user?.is_host === true;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin w-8 h-8 border-4 border-gray-900 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div
+        className={`fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 p-4 z-50 transform transition-transform lg:hidden ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <span className="text-lg font-bold text-gray-900">Menu</span>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="text-xl hover:bg-gray-100 p-1 rounded"
+          >
+            ✕
+          </button>
+        </div>
+        <nav className="space-y-1">
+          {menuItems.map((item, idx) => (
+            <Link
+              key={idx}
+              href={item.disabled ? "#" : item.href}
+              onClick={() => !item.disabled && setSidebarOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
+                pathname === item.href
+                  ? "bg-gray-100 text-gray-900 font-medium"
+                  : item.disabled
+                    ? "opacity-50 cursor-not-allowed text-gray-500"
+                    : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span>{item.icon}</span>
+              <span className="flex-1">{item.label}</span>
+              {item.label === "My Teams" && teamsCount > 0 && (
+                <span className="bg-gray-900 text-white text-xs px-2 py-0.5 rounded-full">
+                  {teamsCount}
+                </span>
+              )}
+              {item.disabled && (
+                <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                  Soon
+                </span>
+              )}
+            </Link>
+          ))}
+          {isAdminOrHost && (
+            <Link
+              href="/admin"
+              onClick={() => setSidebarOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-900 border border-gray-200 mt-4"
+            >
+              ⚙️ Admin Panel
+            </Link>
+          )}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50 w-full mt-4"
+          >
+            🚪 Logout
+          </button>
+        </nav>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 p-4 hidden lg:flex flex-col">
+        <div className="text-xl font-bold text-gray-900 mb-8 flex items-center gap-2">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          Esports
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-3 mb-6 flex items-center gap-3">
+          <Image
+            src={`https://ui-avatars.com/api/?name=${user.username}&background=111827&color=fff`}
+            alt={user.username}
+            width={40}
+            height={40}
+            className="rounded-full"
+          />
+          <div>
+            <p className="text-sm font-medium text-gray-900">{user.username}</p>
+            <p className="text-xs text-gray-500">
+              {isAdminOrHost ? "Host" : "Player"}
+            </p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          {menuItems.map((item, idx) => (
+            <Link
+              key={idx}
+              href={item.disabled ? "#" : item.href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
+                pathname === item.href
+                  ? "bg-gray-100 text-gray-900 font-medium"
+                  : item.disabled
+                    ? "opacity-50 cursor-not-allowed text-gray-500"
+                    : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span>{item.icon}</span>
+              <span className="flex-1">{item.label}</span>
+              {item.label === "My Teams" && teamsCount > 0 && (
+                <span className="bg-gray-900 text-white text-xs px-2 py-0.5 rounded-full">
+                  {teamsCount}
+                </span>
+              )}
+              {item.disabled && (
+                <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                  Soon
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+
+        {isAdminOrHost && (
+          <Link
+            href="/admin"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-900 border border-gray-200 mb-2"
+          >
+            ⚙️ Admin Panel
+          </Link>
+        )}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50 w-full"
+        >
+          🚪 Logout
+        </button>
+      </aside>
+
+      {/* Main Content */}
+      <main className="lg:ml-64 min-h-screen">
+        {/* Mobile Header */}
+        <header className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-3 flex items-center justify-between lg:hidden">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </button>
+          <span className="font-bold text-gray-900 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            Esports
+          </span>
+          <div className="w-10"></div>
+        </header>
+
+        <div className="p-6">{children}</div>
+      </main>
+
+      {/* Notification Permission Prompt */}
+      <NotificationPrompt showOnDenied />
+    </div>
+  );
+}

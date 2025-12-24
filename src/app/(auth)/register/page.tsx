@@ -1,0 +1,257 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+type Step = "form" | "otp";
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const [step, setStep] = useState<Step>("form");
+  const [form, setForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [otp, setOtp] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const handleSendOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: form.username,
+          email: form.email,
+          password: form.password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to send OTP");
+      }
+
+      setSuccess("OTP sent to your email!");
+      setStep("otp");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send OTP");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email,
+          otp: otp,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to verify OTP");
+      }
+
+      // Store token
+      localStorage.setItem("token", data.data.token);
+      localStorage.setItem("user", JSON.stringify(data.data.user));
+      document.cookie = `token=${data.data.token}; path=/; max-age=${7 * 24 * 60 * 60}`;
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to verify OTP");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-200">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {step === "form" ? "Create Account" : "Verify Email"}
+            </h1>
+            <p className="text-gray-600">
+              {step === "form"
+                ? "Join the esports community"
+                : "Enter the OTP sent to your email"}
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-lg mb-6">
+              {success}
+            </div>
+          )}
+
+          {step === "form" ? (
+            <form onSubmit={handleSendOTP} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  placeholder="Choose a username"
+                  value={form.username}
+                  onChange={(e) =>
+                    setForm({ ...form, username: e.target.value })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition text-gray-900 text-base bg-white placeholder:text-gray-400"
+                  required
+                  autoComplete="username"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition text-gray-900 text-base bg-white placeholder:text-gray-400"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Create a password"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition text-gray-900 text-base bg-white placeholder:text-gray-400"
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Confirm your password"
+                  value={form.confirmPassword}
+                  onChange={(e) =>
+                    setForm({ ...form, confirmPassword: e.target.value })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition text-gray-900 text-base bg-white placeholder:text-gray-400"
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 bg-gray-900 text-white font-semibold rounded-lg hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "Sending OTP..." : "Send OTP"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOTP} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter OTP
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter 6-digit OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.toUpperCase())}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition text-center text-2xl tracking-widest font-mono text-gray-900 bg-white placeholder:text-gray-400"
+                  maxLength={6}
+                  required
+                  autoComplete="one-time-code"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 bg-gray-900 text-white font-semibold rounded-lg hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "Verifying..." : "Verify & Register"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("form");
+                  setOtp("");
+                  setError("");
+                  setSuccess("");
+                }}
+                className="w-full py-3 px-4 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition"
+              >
+                Back
+              </button>
+            </form>
+          )}
+
+          <p className="text-center mt-6 text-gray-600">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="font-semibold text-gray-900 hover:underline"
+            >
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
