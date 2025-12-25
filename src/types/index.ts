@@ -1,7 +1,7 @@
 // Database types matching your PostgreSQL schema
 
 export interface User {
-  id: string; // UUID
+  id: number; // SERIAL PRIMARY KEY (integer)
   username: string;
   email: string;
   password_hash?: string;

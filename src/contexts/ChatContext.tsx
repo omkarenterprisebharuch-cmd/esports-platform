@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
 import {
@@ -33,6 +34,13 @@ interface ChatContextType {
   clearError: () => void;
 }
 
+// Store last room info for reconnection
+interface LastRoomInfo {
+  tournamentId: number | string;
+  registeredUsers: (number | string)[];
+  endTime: string;
+}
+
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -42,18 +50,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isChatClosed, setIsChatClosed] = useState(false);
   const [socketReady, setSocketReady] = useState(false);
+  
+  // Track last room for reconnection
+  const lastRoomRef = useRef<LastRoomInfo | null>(null);
+  const tokenRef = useRef<string | null>(null);
+  const wasConnectedRef = useRef(false);
 
   const connect = useCallback((token: string) => {
+    tokenRef.current = token;
     const socket = initSocket(token);
 
     socket.on("connect", () => {
       setIsConnected(true);
       setSocketReady(true);
       setError(null);
+      
+      // Auto-rejoin last room on reconnect
+      if (wasConnectedRef.current && lastRoomRef.current) {
+        const { tournamentId, registeredUsers, endTime } = lastRoomRef.current;
+        console.log("🔄 Reconnecting to chat room:", tournamentId);
+        // Small delay to ensure socket is fully ready
+        setTimeout(() => {
+          joinTournamentChat(tournamentId, registeredUsers, endTime);
+        }, 100);
+      }
+      wasConnectedRef.current = true;
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
       setIsConnected(false);
+      console.log("📡 Disconnected from chat:", reason);
+      
+      // Don't clear messages on temporary disconnects
+      // This preserves chat history during reconnection attempts
+      if (reason === "io server disconnect" || reason === "io client disconnect") {
+        // Server or client initiated disconnect - clear everything
+        setMessages([]);
+        setActiveUserCount(0);
+        lastRoomRef.current = null;
+      }
+      // For transport close/error, socket.io will auto-reconnect
     });
 
     socket.on("connect_error", (err) => {
@@ -68,6 +104,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSocketReady(false);
     setMessages([]);
     setActiveUserCount(0);
+    lastRoomRef.current = null;
+    wasConnectedRef.current = false;
   }, []);
 
   const joinChat = useCallback(
@@ -77,6 +115,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Store room info for reconnection
+      lastRoomRef.current = { tournamentId, registeredUsers, endTime };
+      
+      // Only clear messages if joining a different room
       setMessages([]);
       setActiveUserCount(0);
       setIsChatClosed(false);
@@ -91,6 +133,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     leaveTournamentChat(tournamentId);
     setMessages([]);
     setActiveUserCount(0);
+    lastRoomRef.current = null;
   }, []);
 
   const send = useCallback((tournamentId: number | string, message: string) => {
@@ -113,7 +156,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setMessages((prev) => [...prev, message]);
       },
       onHistory: (data) => {
-        setMessages(data.messages);
+        // Merge history with existing messages to preserve any sent during reconnection
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = data.messages.filter(m => !existingIds.has(m.id));
+          // Combine and sort by timestamp
+          const combined = [...newMessages, ...prev];
+          combined.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          return combined;
+        });
       },
       onActiveUsers: (data) => {
         setActiveUserCount(data.count);
@@ -121,10 +172,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onError: (err) => {
         setError(err.message);
       },
-      onChatClosed: (data) => {
+      onChatClosed: () => {
         setIsChatClosed(true);
         setMessages([]);
         setActiveUserCount(0);
+        lastRoomRef.current = null;
       },
     });
 

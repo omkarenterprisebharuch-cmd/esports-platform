@@ -39,31 +39,31 @@
 
 ### 2. Database Optimizations
 
-| Issue | Current State | Recommendation | Priority |
-|-------|---------------|----------------|----------|
-| Pool size | 3 connections (Aiven limit) | Add connection queue management | 🟡 Medium |
-| Missing indexes | Unknown | Add indexes on `tournament_id`, `user_id`, `status` | 🔴 High |
-| N+1 queries | Some endpoints fetch in loops | Use JOINs and batch queries | 🟡 Medium |
-| Raw SQL | String concatenation | Use parameterized prepared statements | 🟡 Medium |
+| Issue | Current State | Recommendation | Priority | Status |
+|-------|---------------|----------------|----------|--------|
+| Pool size | 3 connections (Aiven limit) | Add connection queue management | 🟡 Medium | ✅ Done |
+| Missing indexes | Unknown | Add indexes on `tournament_id`, `user_id`, `status` | 🔴 High | ✅ Done |
+| N+1 queries | Some endpoints fetch in loops | Use JOINs and batch queries | 🟡 Medium | ✅ Done |
+| Raw SQL | String concatenation | Use parameterized prepared statements | 🟡 Medium | ✅ Done |
 
 ### 3. Frontend Optimizations
 
-| Issue | Current State | Recommendation | Priority |
-|-------|---------------|----------------|----------|
-| Module-level cache | Works but not hydration-safe | Use React Context + localStorage sync | 🟡 Medium |
-| Duplicate fetches | fetchedRef pattern | Use SWR or TanStack Query | 🟢 Low |
-| Image optimization | Using next/image ✅ | Add blur placeholders | 🟢 Low |
-| Bundle size | MUI + Emotion included | Remove MUI (only Tailwind needed) | 🟡 Medium |
-| Loading states | Custom spinners everywhere | Create shared Skeleton components | 🟢 Low |
+| Issue | Current State | Recommendation | Priority | Status |
+|-------|---------------|----------------|----------|--------|
+| Module-level cache | Works but not hydration-safe | Use React Context + localStorage sync | 🟡 Medium | ⬜ Open |
+| Duplicate fetches | fetchedRef pattern | Use SWR or TanStack Query | 🟢 Low | ⬜ Open |
+| Image optimization | Using next/image ✅ | Add blur placeholders | 🟢 Low | ✅ Done |
+| Bundle size | MUI + Emotion included | Remove MUI (only Tailwind needed) | 🟡 Medium | ✅ Done |
+| Loading states | Custom spinners everywhere | Create shared Skeleton components | 🟢 Low | ✅ Done |
 
 ### 4. Code Architecture
 
-| Issue | Current State | Recommendation | Priority |
-|-------|---------------|----------------|----------|
-| Error handling | Inconsistent try/catch | Create centralized error handler | 🟡 Medium |
-| API response format | Helper functions exist ✅ | Add TypeScript generics for type safety | 🟢 Low |
-| Duplicate code | Same fetch patterns repeated | Create custom `useApi` hook | 🟡 Medium |
-| Type definitions | Good base in `types/index.ts` | Add Zod schemas that match types | 🟡 Medium |
+| Issue | Current State | Recommendation | Priority | Status |
+|-------|---------------|----------------|----------|--------|
+| Error handling | Inconsistent try/catch | Create centralized error handler | 🟡 Medium | ✅ Done |
+| API response format | Helper functions exist ✅ | Add TypeScript generics for type safety | 🟢 Low | ✅ Done |
+| Duplicate code | Same fetch patterns repeated | Create custom `useApi` hook | 🟡 Medium | ✅ Done |
+| Type definitions | Good base in `types/index.ts` | Add Zod schemas that match types | 🟡 Medium | ✅ Done |
 
 ---
 
@@ -72,11 +72,11 @@
 | # | Issue | Location | Severity | Status |
 |---|-------|----------|----------|--------|
 | 1 | Wallet link disabled but shows in menu | `src/app/(dashboard)/layout.tsx` | 🟢 Low | ⬜ Open |
-| 2 | `url.parse()` deprecation warning | `server.ts` | 🟢 Low | ⬜ Open |
-| 3 | My Registrations links to `/tournaments` (doesn't exist) | `src/app/(dashboard)/my-registrations/page.tsx` | 🟡 Medium | ⬜ Open |
-| 4 | User type mismatch (`id: string` vs `id: number`) | `src/types/index.ts` | 🟡 Medium | ⬜ Open |
-| 5 | No error boundary in dashboard layout | `src/app/(dashboard)/layout.tsx` | 🟡 Medium | ⬜ Open |
-| 6 | Chat doesn't show historical messages on reconnect | Socket.io implementation | 🟢 Low | ⬜ Open |
+| 2 | `url.parse()` deprecation warning | `server.ts` | 🟢 Low | ✅ Done |
+| 3 | My Registrations links to `/tournaments` (doesn't exist) | `src/app/(dashboard)/my-registrations/page.tsx` | 🟡 Medium | ✅ Done |
+| 4 | User type mismatch (`id: string` vs `id: number`) | `src/types/index.ts` | 🟡 Medium | ✅ Done |
+| 5 | No error boundary in dashboard layout | `src/app/(dashboard)/layout.tsx` | 🟡 Medium | ✅ Done |
+| 6 | Chat doesn't show historical messages on reconnect | Socket.io implementation | 🟢 Low | ✅ Done |
 
 ---
 

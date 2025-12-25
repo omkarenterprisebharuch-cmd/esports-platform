@@ -94,7 +94,7 @@ export default function MyRegistrationsPage() {
             Browse tournaments and register to participate
           </p>
           <Link
-            href="/tournaments"
+            href="/dashboard"
             className="inline-block px-6 py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition"
           >
             Browse Tournaments

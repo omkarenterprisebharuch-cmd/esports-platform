@@ -46,7 +46,7 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "5mb",
     },
     // Enable optimized package imports
-    optimizePackageImports: ["@mui/material", "@mui/icons-material", "@emotion/react"],
+    optimizePackageImports: ["socket.io-client"],
   },
 
   // Allow mobile devices on the same network to access dev server

@@ -1,6 +1,20 @@
 import { Pool, PoolClient } from "pg";
 
-// Database connection pool using pg (same as your Express backend)
+// ============ Connection Queue Management ============
+// For Aiven free tier with 3-connection limit
+
+interface QueuedRequest {
+  resolve: (client: PoolClient) => void;
+  reject: (error: Error) => void;
+  timeout: NodeJS.Timeout;
+}
+
+const connectionQueue: QueuedRequest[] = [];
+let activeConnections = 0;
+const MAX_CONNECTIONS = 3;
+const QUEUE_TIMEOUT = 30000; // 30 seconds max wait in queue
+
+// Database connection pool using pg
 const pool = new Pool({
   host: process.env.DB_HOST || "localhost",
   port: parseInt(process.env.DB_PORT || "5432"),
@@ -9,18 +23,79 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || "",
   ssl:
     process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
-  max: 3, // Very small pool for Aiven free tier (limited connections)
+  max: MAX_CONNECTIONS, // Match Aiven free tier limit
   idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
   connectionTimeoutMillis: 10000, // Wait up to 10 seconds for connection
   query_timeout: 30000, // Queries timeout after 30 seconds
   statement_timeout: 30000, // Statement timeout 30 seconds
-  keepAlive: false, // Don't keep connections alive to free slots
+  keepAlive: true, // Keep connections alive for reuse
+  allowExitOnIdle: false, // Don't exit on idle
 });
 
 // Handle pool errors to prevent crashes
 pool.on("error", (err: Error) => {
   console.error("Unexpected database pool error:", err.message);
 });
+
+// Log connection stats in development
+pool.on("connect", () => {
+  activeConnections++;
+  if (process.env.NODE_ENV === "development") {
+    console.log(`📊 DB Connection opened (${activeConnections}/${MAX_CONNECTIONS} active)`);
+  }
+});
+
+pool.on("remove", () => {
+  activeConnections = Math.max(0, activeConnections - 1);
+  // Process queued requests when a connection is released
+  processQueue();
+});
+
+// Process waiting requests when a connection becomes available
+function processQueue() {
+  if (connectionQueue.length > 0 && activeConnections < MAX_CONNECTIONS) {
+    const request = connectionQueue.shift();
+    if (request) {
+      clearTimeout(request.timeout);
+      pool.connect()
+        .then(request.resolve)
+        .catch(request.reject);
+    }
+  }
+}
+
+// Get a connection with queue management
+async function getConnection(): Promise<PoolClient> {
+  // If we have capacity, connect directly
+  if (activeConnections < MAX_CONNECTIONS) {
+    return pool.connect();
+  }
+
+  // Otherwise queue the request
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      const index = connectionQueue.findIndex((r) => r.resolve === resolve);
+      if (index > -1) {
+        connectionQueue.splice(index, 1);
+      }
+      reject(new Error("Connection queue timeout - database is busy"));
+    }, QUEUE_TIMEOUT);
+
+    connectionQueue.push({ resolve, reject, timeout });
+  });
+}
+
+// Get pool statistics for monitoring
+export function getPoolStats() {
+  return {
+    totalConnections: pool.totalCount,
+    idleConnections: pool.idleCount,
+    waitingClients: pool.waitingCount,
+    activeConnections,
+    queueLength: connectionQueue.length,
+    maxConnections: MAX_CONNECTIONS,
+  };
+}
 
 // Test connection on startup (only in development)
 if (process.env.NODE_ENV === "development") {
@@ -32,11 +107,11 @@ if (process.env.NODE_ENV === "development") {
 
 export default pool;
 
-// Helper function for transactions
+// Helper function for transactions with queue management
 export async function withTransaction<T>(
   callback: (client: PoolClient) => Promise<T>
 ): Promise<T> {
-  const client = await pool.connect();
+  const client = await getConnection();
   try {
     await client.query("BEGIN");
     const result = await callback(client);
@@ -105,4 +180,96 @@ function isRetryableError(error: unknown): boolean {
 // Sleep helper
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ============ Batch Query Helpers ============
+
+/**
+ * Execute multiple queries in a single transaction for efficiency
+ * Useful for batch inserts/updates
+ */
+export async function batchQuery<T = unknown>(
+  queries: { text: string; params?: unknown[] }[]
+): Promise<T[][]> {
+  return withTransaction(async (client) => {
+    const results: T[][] = [];
+    for (const { text, params } of queries) {
+      const result = await client.query(text, params);
+      results.push(result.rows as T[]);
+    }
+    return results;
+  });
+}
+
+/**
+ * Batch insert using a single query with multiple VALUES
+ * More efficient than multiple INSERT statements
+ */
+export async function batchInsert<T = unknown>(
+  table: string,
+  columns: string[],
+  rows: unknown[][],
+  returning?: string
+): Promise<T[]> {
+  if (rows.length === 0) return [];
+
+  const placeholders: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  for (const row of rows) {
+    const rowPlaceholders: string[] = [];
+    for (const value of row) {
+      rowPlaceholders.push(`$${paramIndex}`);
+      values.push(value);
+      paramIndex++;
+    }
+    placeholders.push(`(${rowPlaceholders.join(", ")})`);
+  }
+
+  const query = `
+    INSERT INTO ${table} (${columns.join(", ")})
+    VALUES ${placeholders.join(", ")}
+    ${returning ? `RETURNING ${returning}` : ""}
+  `;
+
+  const result = await pool.query(query, values);
+  return result.rows as T[];
+}
+
+/**
+ * Fetch multiple rows by IDs in a single query
+ * Prevents N+1 queries when fetching related data
+ */
+export async function fetchByIds<T = unknown>(
+  table: string,
+  idColumn: string,
+  ids: (string | number)[],
+  columns = "*"
+): Promise<T[]> {
+  if (ids.length === 0) return [];
+
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(", ");
+  const query = `SELECT ${columns} FROM ${table} WHERE ${idColumn} IN (${placeholders})`;
+  
+  const result = await pool.query(query, ids);
+  return result.rows as T[];
+}
+
+/**
+ * Check existence of multiple items in one query
+ * Returns a Set of existing IDs
+ */
+export async function checkExistence(
+  table: string,
+  idColumn: string,
+  ids: (string | number)[]
+): Promise<Set<string | number>> {
+  if (ids.length === 0) return new Set();
+
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(", ");
+  const query = `SELECT ${idColumn} FROM ${table} WHERE ${idColumn} IN (${placeholders})`;
+  
+  const result = await pool.query(query, ids);
+  return new Set(result.rows.map((row) => row[idColumn]));
 }

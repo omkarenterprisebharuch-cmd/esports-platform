@@ -18,6 +18,9 @@ const handle = app.getRequestHandler();
 app.prepare().then(() => {
   // Create Next.js HTTP server
   const nextServer = createServer((req, res) => {
+    // Note: url.parse is deprecated but Next.js handle() requires UrlWithParsedQuery
+    // The new URL() API returns incompatible types. Using parse() is safe here.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const parsedUrl = parse(req.url || "", true);
     handle(req, res, parsedUrl);
   });

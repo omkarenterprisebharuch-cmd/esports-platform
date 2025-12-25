@@ -164,42 +164,67 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         [id]
       );
 
-      // Insert new leaderboard entries
-      for (const result of results) {
-        const { team_id, user_id, rank, kills, points, prize_amount } = result;
+      // Batch validate registrations to avoid N+1 queries
+      const isSolo = tournament.tournament_type === "solo";
+      const idsToCheck = results.map((r: { team_id?: string; user_id?: string }) => 
+        isSolo ? r.user_id : r.team_id
+      ).filter(Boolean);
 
-        // Validate that the team/user is actually registered
-        if (tournament.tournament_type === "solo") {
-          if (!user_id) {
-            throw new Error(`User ID is required for solo tournament results (rank ${rank})`);
-          }
-          const regCheck = await client.query(
-            `SELECT id FROM tournament_registrations 
-             WHERE tournament_id = $1 AND user_id = $2 AND status != 'cancelled'`,
-            [id, user_id]
+      // Single query to check all registrations at once
+      const regCheckQuery = isSolo
+        ? `SELECT user_id as check_id FROM tournament_registrations 
+           WHERE tournament_id = $1 AND user_id = ANY($2) AND status != 'cancelled'`
+        : `SELECT team_id as check_id FROM tournament_registrations 
+           WHERE tournament_id = $1 AND team_id = ANY($2) AND status != 'cancelled'`;
+
+      const registeredResult = await client.query(regCheckQuery, [id, idsToCheck]);
+      const registeredIds = new Set(registeredResult.rows.map((r) => String(r.check_id)));
+
+      // Validate all results before inserting
+      for (const result of results) {
+        const { team_id, user_id, rank } = result;
+        const checkId = isSolo ? user_id : team_id;
+        
+        if (isSolo && !user_id) {
+          throw new Error(`User ID is required for solo tournament results (rank ${rank})`);
+        }
+        if (!isSolo && !team_id) {
+          throw new Error(`Team ID is required for ${tournament.tournament_type} tournament results (rank ${rank})`);
+        }
+        if (!registeredIds.has(String(checkId))) {
+          throw new Error(`${isSolo ? 'User' : 'Team'} with ID ${checkId} is not registered for this tournament`);
+        }
+      }
+
+      // Batch insert all leaderboard entries in a single query
+      if (results.length > 0) {
+        const values: unknown[] = [];
+        const placeholders: string[] = [];
+        let paramIndex = 1;
+
+        for (const result of results) {
+          const { team_id, user_id, rank, kills, points, prize_amount } = result;
+          placeholders.push(
+            `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7})`
           );
-          if (regCheck.rows.length === 0) {
-            throw new Error(`User with ID ${user_id} is not registered for this tournament`);
-          }
-        } else {
-          if (!team_id) {
-            throw new Error(`Team ID is required for ${tournament.tournament_type} tournament results (rank ${rank})`);
-          }
-          const regCheck = await client.query(
-            `SELECT id FROM tournament_registrations 
-             WHERE tournament_id = $1 AND team_id = $2 AND status != 'cancelled'`,
-            [id, team_id]
+          values.push(
+            id,
+            team_id || null,
+            user_id || null,
+            rank,
+            kills || 0,
+            points || 0,
+            prize_amount || 0,
+            user.id
           );
-          if (regCheck.rows.length === 0) {
-            throw new Error(`Team with ID ${team_id} is not registered for this tournament`);
-          }
+          paramIndex += 8;
         }
 
         await client.query(
           `INSERT INTO tournament_leaderboard 
            (tournament_id, team_id, user_id, "position", kills, points, prize_amount, updated_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [id, team_id || null, user_id || null, rank, kills || 0, points || 0, prize_amount || 0, user.id]
+           VALUES ${placeholders.join(", ")}`,
+          values
         );
       }
     });

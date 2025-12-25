@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { LoaderProvider, Loader, NavigationLoader } from "@/components/ui/Loader";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { RegistrationCacheProvider } from "@/hooks/useRegistrationCache";
 import { api, logout, isAuthenticated } from "@/lib/api-client";
 
@@ -224,6 +225,8 @@ export default function DashboardLayout({
             width={40}
             height={40}
             className="rounded-full"
+            placeholder="blur"
+            blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMxMTE4MjciLz48L3N2Zz4="
           />
           <div>
             <p className="text-sm font-medium text-gray-900">{user.username}</p>
@@ -306,7 +309,11 @@ export default function DashboardLayout({
           <div className="w-10"></div>
         </header>
 
-        <div className="p-6">{children}</div>
+        <div className="p-6">
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
+        </div>
       </main>
 
       {/* Notification Permission Prompt */}
