@@ -106,13 +106,29 @@ export default function DashboardLayout({
         setInitialLoading(false);
         setUser(cachedUser);
         setTeamsCount(cachedTeamsCount);
+      } else {
+        // No cached user and already tried to fetch, stop loading
+        setInitialLoading(false);
       }
       return;
     }
     fetchedRef.current = true;
     
-    fetchUserData();
-  }, [fetchUserData]);
+    // Safety timeout - prevent infinite loading screen
+    const safetyTimeout = setTimeout(() => {
+      if (initialLoading) {
+        console.warn("Dashboard loading timeout - redirecting to login");
+        setInitialLoading(false);
+        router.push("/login");
+      }
+    }, 10000); // 10 second max loading time
+    
+    fetchUserData().finally(() => {
+      clearTimeout(safetyTimeout);
+    });
+    
+    return () => clearTimeout(safetyTimeout);
+  }, [fetchUserData, initialLoading, router]);
 
   const handleLogout = async () => {
     // Clear all caches

@@ -54,6 +54,8 @@ export interface TeamMemberWithUser extends TeamMember {
   avatar_url?: string;
 }
 
+export type ScheduleType = "once" | "everyday";
+
 export interface Tournament {
   id: number;
   host_id: number;
@@ -77,6 +79,12 @@ export interface Tournament {
   room_id?: string;
   room_password?: string;
   room_credentials_updated_at?: Date;
+  // Auto-scheduling fields
+  schedule_type: ScheduleType;
+  publish_time?: string; // HH:MM format for everyday scheduling
+  is_template: boolean;
+  template_id?: string; // UUID reference to parent template
+  last_published_at?: Date;
   created_at: Date;
   updated_at: Date;
 }

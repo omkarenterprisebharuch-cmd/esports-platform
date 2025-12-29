@@ -13,9 +13,9 @@ import { validateWithSchema, validationErrorResponse, uuidSchema } from "@/lib/v
 // Schema for tournament registration
 const registerTournamentSchema = z.object({
   tournament_id: uuidSchema,
-  team_id: uuidSchema.optional(),
-  selected_players: z.array(uuidSchema).optional(),
-  backup_players: z.array(uuidSchema).optional(),
+  team_id: uuidSchema.optional().nullable(),
+  selected_players: z.array(uuidSchema).optional().nullable(),
+  backup_players: z.array(uuidSchema).optional().nullable(),
 });
 
 /**

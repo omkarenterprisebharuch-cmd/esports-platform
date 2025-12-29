@@ -259,11 +259,15 @@ export default function TournamentDetailsPage() {
     );
   }
 
-  // Check registration timing
-  const now = new Date();
-  const regStart = new Date(tournament.registration_start_date);
-  const regEnd = new Date(tournament.registration_end_date);
-  const isRegistrationOpen = now >= regStart && now < regEnd;
+  // Check registration timing - use timestamps for reliable comparison
+  const now = Date.now();
+  const regStartStr = tournament.registration_start_date?.toString() || '';
+  const regEndStr = tournament.registration_end_date?.toString() || '';
+  const regStart = new Date(regStartStr).getTime();
+  const regEnd = new Date(regEndStr).getTime();
+  // Ensure dates are valid before comparing
+  const hasValidDates = !isNaN(regStart) && !isNaN(regEnd);
+  const isRegistrationOpen = hasValidDates && now >= regStart && now < regEnd;
   const hasSpots = tournament.current_teams < tournament.max_teams;
   const canRegister = isRegistrationOpen && hasSpots && !isAlreadyRegistered;
 
@@ -512,7 +516,7 @@ export default function TournamentDetailsPage() {
               ? "Register Now"
               : "Register with Team"}
         </button>
-      ) : now < regStart ? (
+      ) : (hasValidDates && now < regStart) ? (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center mb-6">
           <p className="text-yellow-700">
             Registration opens on{" "}

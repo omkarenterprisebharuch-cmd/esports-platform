@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { TournamentWithHost, Team, TeamMemberWithUser } from "@/types";
 import { useRegistrationCache } from "@/hooks/useRegistrationCache";
+import { secureFetch } from "@/lib/api-client";
 
 interface TeamWithMembers extends Team {
   members?: TeamMemberWithUser[];
@@ -130,8 +131,6 @@ export default function RegisterTournamentPage() {
     setError("");
     setSuccess("");
 
-    const token = localStorage.getItem("token");
-
     try {
       // Calculate backup players (team members not selected)
       const backupPlayers = tournament.tournament_type !== "solo" 
@@ -140,12 +139,8 @@ export default function RegisterTournamentPage() {
             .map((m) => m.user_id)
         : [];
 
-      const res = await fetch("/api/registrations/register", {
+      const res = await secureFetch("/api/registrations/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           tournament_id: tournament.id,
           team_id: selectedTeamId,

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TournamentWithHost, User } from "@/types";
+import { secureFetch } from "@/lib/api-client";
 
 interface Registration {
   registration_id: number;
@@ -19,8 +20,9 @@ export default function AdminPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<TournamentWithHost[]>([]);
+  const [scheduledTemplates, setScheduledTemplates] = useState<TournamentWithHost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"tournaments" | "create" | "edit" | "results">("tournaments");
+  const [activeTab, setActiveTab] = useState<"tournaments" | "scheduled" | "create" | "edit" | "results">("tournaments");
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [message, setMessage] = useState<{
@@ -61,6 +63,9 @@ export default function AdminPage() {
     registration_end_date: "",
     tournament_start_date: "",
     tournament_end_date: "",
+    // Auto-scheduling fields
+    schedule_type: "once" as "once" | "everyday",
+    publish_time: "", // HH:MM format
   });
 
   // Room credentials modal state
@@ -95,6 +100,7 @@ export default function AdminPage() {
           } else {
             setUser(userData);
             fetchMyTournaments(token);
+            fetchScheduledTemplates(token);
           }
         }
       });
@@ -111,6 +117,18 @@ export default function AdminPage() {
         }
       })
       .finally(() => setLoading(false));
+  };
+
+  const fetchScheduledTemplates = (token: string | null) => {
+    fetch("/api/tournaments?hosted=true&templates=true", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setScheduledTemplates(data.data.tournaments || []);
+        }
+      });
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -153,7 +171,8 @@ export default function AdminPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage({ type: "success", text: "Tournament created successfully!" });
+        setMessage({ type: "success", text: data.message || "Tournament created successfully!" });
+        const wasScheduled = form.schedule_type === "everyday";
         setForm({
           tournament_name: "",
           game_type: "freefire",
@@ -168,9 +187,13 @@ export default function AdminPage() {
           registration_end_date: "",
           tournament_start_date: "",
           tournament_end_date: "",
+          schedule_type: "once",
+          publish_time: "",
         });
         fetchMyTournaments(token);
-        setActiveTab("tournaments");
+        fetchScheduledTemplates(token);
+        // Navigate to appropriate tab based on schedule type
+        setActiveTab(wasScheduled ? "scheduled" : "tournaments");
       } else {
         setMessage({ type: "error", text: data.message });
       }
@@ -278,6 +301,8 @@ export default function AdminPage() {
           registration_end_date: "",
           tournament_start_date: "",
           tournament_end_date: "",
+          schedule_type: "once",
+          publish_time: "",
         });
         fetchMyTournaments(token);
         setActiveTab("tournaments");
@@ -307,6 +332,8 @@ export default function AdminPage() {
       registration_end_date: "",
       tournament_start_date: "",
       tournament_end_date: "",
+      schedule_type: "once",
+      publish_time: "",
     });
     setActiveTab("tournaments");
   };
@@ -314,20 +341,40 @@ export default function AdminPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this tournament?")) return;
 
-    const token = localStorage.getItem("token");
-
     try {
-      const res = await fetch(`/api/tournaments/${id}`, {
+      const res = await secureFetch(`/api/tournaments/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.ok) {
         setTournaments((prev) => prev.filter((t) => t.id !== id));
         setMessage({ type: "success", text: "Tournament deleted" });
+      } else {
+        const data = await res.json();
+        setMessage({ type: "error", text: data.message || "Failed to delete tournament" });
       }
     } catch {
       setMessage({ type: "error", text: "Failed to delete tournament" });
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number) => {
+    if (!confirm("Are you sure you want to stop and delete this scheduled tournament template? This will stop future auto-publishing.")) return;
+
+    try {
+      const res = await secureFetch(`/api/tournaments/${id}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setScheduledTemplates((prev) => prev.filter((t) => t.id !== id));
+        setMessage({ type: "success", text: "Scheduled template deleted. No more tournaments will be auto-published from it." });
+      } else {
+        const data = await res.json();
+        setMessage({ type: "error", text: data.message || "Failed to delete scheduled template" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Failed to delete scheduled template" });
     }
   };
 
@@ -533,6 +580,21 @@ export default function AdminPage() {
           My Tournaments
         </button>
         <button
+          onClick={() => setActiveTab("scheduled")}
+          className={`px-4 py-2 rounded-lg font-medium transition ${
+            activeTab === "scheduled"
+              ? "bg-gray-900 text-white"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          🗓️ Scheduled
+          {scheduledTemplates.length > 0 && (
+            <span className="ml-2 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+              {scheduledTemplates.length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab("create")}
           className={`px-4 py-2 rounded-lg font-medium transition ${
             activeTab === "create"
@@ -652,6 +714,107 @@ export default function AdminPage() {
                     className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200 transition"
                   >
                     Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {activeTab === "scheduled" && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <span className="text-blue-500 text-xl">🗓️</span>
+              <div>
+                <h3 className="font-semibold text-blue-800">Scheduled Tournament Templates</h3>
+                <p className="text-sm text-blue-600">
+                  These tournaments auto-publish every day at their scheduled time. 
+                  Users can register until the registration end time.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {scheduledTemplates.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+              <p className="text-gray-500 mb-4">
+                You haven&apos;t created any scheduled recurring tournaments yet
+              </p>
+              <button
+                onClick={() => setActiveTab("create")}
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition"
+              >
+                Create Scheduled Tournament
+              </button>
+            </div>
+          ) : (
+            scheduledTemplates.map((template) => (
+              <div
+                key={template.id}
+                className="bg-white border border-gray-200 rounded-xl p-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900">
+                        {template.tournament_name}
+                      </h3>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                        Daily
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      {template.game_type.toUpperCase()} •{" "}
+                      {template.tournament_type.toUpperCase()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-700">
+                      Publishes at
+                    </p>
+                    <p className="text-lg font-bold text-blue-600">
+                      {template.publish_time || "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 mt-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Max {template.tournament_type === "solo" ? "Players" : "Teams"}</p>
+                    <p className="font-medium">{template.max_teams}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Prize</p>
+                    <p className="font-medium text-green-600">
+                      ₹{template.prize_pool}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Entry</p>
+                    <p className="font-medium">
+                      {template.entry_fee > 0
+                        ? `₹${template.entry_fee}`
+                        : "Free"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Last Published</p>
+                    <p className="font-medium">
+                      {template.last_published_at
+                        ? formatDate(template.last_published_at)
+                        : "Never"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => handleDeleteTemplate(template.id)}
+                    className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200 transition"
+                  >
+                    Stop & Delete
                   </button>
                 </div>
               </div>
@@ -900,6 +1063,82 @@ export default function AdminPage() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Auto-Scheduling Section */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+            <h2 className="font-semibold text-gray-900 mb-4">
+              🗓️ Auto-Scheduling
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Choose how often this tournament should be published
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Schedule Type *
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="schedule_type_create"
+                      value="once"
+                      checked={form.schedule_type === "once"}
+                      onChange={(e) => setForm({ ...form, schedule_type: e.target.value as "once" | "everyday", publish_time: "" })}
+                      className="w-4 h-4 text-gray-900 focus:ring-gray-900"
+                    />
+                    <span className="text-gray-700">Once</span>
+                    <span className="text-xs text-gray-500">(One-time tournament)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="schedule_type_create"
+                      value="everyday"
+                      checked={form.schedule_type === "everyday"}
+                      onChange={(e) => setForm({ ...form, schedule_type: e.target.value as "once" | "everyday" })}
+                      className="w-4 h-4 text-gray-900 focus:ring-gray-900"
+                    />
+                    <span className="text-gray-700">Everyday</span>
+                    <span className="text-xs text-gray-500">(Auto-publish daily)</span>
+                  </label>
+                </div>
+              </div>
+
+              {form.schedule_type === "everyday" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-blue-500 text-xl">⏰</span>
+                    <div className="flex-1">
+                      <p className="text-blue-700 text-sm font-medium mb-3">
+                        Daily Auto-Publish Settings
+                      </p>
+                      <p className="text-blue-600 text-xs mb-4">
+                        Tournament will be automatically created and published every day at the specified time with the same details. 
+                        Users can register until the registration end time.
+                      </p>
+                      <div>
+                        <label className="block text-sm font-medium text-blue-700 mb-1">
+                          Publish Time (Registration Start Time) *
+                        </label>
+                        <input
+                          type="time"
+                          value={form.publish_time}
+                          onChange={(e) => setForm({ ...form, publish_time: e.target.value })}
+                          required={form.schedule_type === "everyday"}
+                          className="w-full max-w-xs px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                        />
+                        <p className="text-xs text-blue-500 mt-2">
+                          Example: If you set 10:00 AM, tournament will go live at 10:00 AM every day
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

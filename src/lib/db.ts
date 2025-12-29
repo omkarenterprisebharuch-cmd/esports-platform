@@ -1,4 +1,7 @@
-import { Pool, PoolClient } from "pg";
+import { Pool, PoolClient, PoolConfig } from "pg";
+
+// Allow self-signed certificates for cloud database providers
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // ============ Connection Queue Management ============
 // For Aiven free tier with 3-connection limit
@@ -14,23 +17,47 @@ let activeConnections = 0;
 const MAX_CONNECTIONS = 3;
 const QUEUE_TIMEOUT = 30000; // 30 seconds max wait in queue
 
+// Parse DATABASE_URL if available, otherwise use individual vars
+function getPoolConfig(): PoolConfig {
+  const databaseUrl = process.env.DATABASE_URL;
+  
+  // Log which connection method is being used
+  if (process.env.NODE_ENV === "development") {
+    console.log(`📊 Database config: ${databaseUrl ? "Using DATABASE_URL" : "Using individual DB_* vars"}`);
+  }
+  
+  // Common SSL config for Aiven and other cloud providers
+  const sslConfig = {
+    rejectUnauthorized: false,
+  };
+  
+  if (databaseUrl) {
+    // Parse the connection string - always use SSL with rejectUnauthorized: false for Aiven
+    return {
+      connectionString: databaseUrl,
+      ssl: sslConfig,
+      max: MAX_CONNECTIONS,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    };
+  }
+  
+  // Fall back to individual environment variables
+  return {
+    host: process.env.DB_HOST || "localhost",
+    port: parseInt(process.env.DB_PORT || "5432"),
+    database: process.env.DB_NAME || "esports_platform",
+    user: process.env.DB_USER || "postgres",
+    password: process.env.DB_PASSWORD || "",
+    ssl: process.env.DB_SSL === "true" ? sslConfig : undefined,
+    max: MAX_CONNECTIONS,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  };
+}
+
 // Database connection pool using pg
-const pool = new Pool({
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432"),
-  database: process.env.DB_NAME || "esports_platform",
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "",
-  ssl:
-    process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
-  max: MAX_CONNECTIONS, // Match Aiven free tier limit
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 10000, // Wait up to 10 seconds for connection
-  query_timeout: 30000, // Queries timeout after 30 seconds
-  statement_timeout: 30000, // Statement timeout 30 seconds
-  keepAlive: true, // Keep connections alive for reuse
-  allowExitOnIdle: false, // Don't exit on idle
-});
+const pool = new Pool(getPoolConfig());
 
 // Handle pool errors to prevent crashes
 pool.on("error", (err: Error) => {

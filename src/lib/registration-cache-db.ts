@@ -45,12 +45,15 @@ let broadcastChannel: BroadcastChannel | null = null;
 // Database instance
 let dbPromise: Promise<IDBPDatabase<RegistrationCacheDB>> | null = null;
 
+// Database initialization timeout
+const DB_INIT_TIMEOUT = 2000; // 2 seconds
+
 /**
- * Initialize the IndexedDB database
+ * Initialize the IndexedDB database with timeout
  */
 function getDB(): Promise<IDBPDatabase<RegistrationCacheDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<RegistrationCacheDB>(DB_NAME, DB_VERSION, {
+    const openPromise = openDB<RegistrationCacheDB>(DB_NAME, DB_VERSION, {
       upgrade(db) {
         // Create registrations store
         if (!db.objectStoreNames.contains("registrations")) {
@@ -61,6 +64,17 @@ function getDB(): Promise<IDBPDatabase<RegistrationCacheDB>> {
           db.createObjectStore("metadata", { keyPath: "key" });
         }
       },
+    });
+    
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('IndexedDB open timeout')), DB_INIT_TIMEOUT)
+    );
+    
+    dbPromise = Promise.race([openPromise, timeoutPromise]).catch((err) => {
+      console.error("IndexedDB failed to open:", err);
+      dbPromise = null; // Reset so we can retry
+      throw err;
     });
   }
   return dbPromise;

@@ -7,19 +7,14 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 });
 
 const nextConfig: NextConfig = {
-  // Set output file tracing root to this directory to avoid lockfile detection issues
   outputFileTracingRoot: path.join(__dirname),
 
-  // Enable React strict mode for better development experience
   reactStrictMode: true,
 
-  // Enable compression
   compress: true,
 
-  // Optimize production builds
   productionBrowserSourceMaps: false,
 
-  // Server-only packages - exclude from client bundle
   serverExternalPackages: [
     "cloudinary",
     "web-push", 
@@ -69,8 +64,14 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Allow mobile devices on the same network to access dev server
-  allowedDevOrigins: ["http://10.155.223.125:3000"],
+  // Allow cross-origin requests from these origins during development
+  allowedDevOrigins: [
+    "http://10.35.55.125:3000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://10.35.55.125:3001",
+    "http://localhost:3001",
+  ],
 
   // Webpack configuration for Socket.io and optimizations
   webpack: (config, { isServer }) => {

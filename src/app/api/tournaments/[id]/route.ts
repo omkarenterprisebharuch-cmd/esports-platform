@@ -188,7 +188,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 /**
  * DELETE /api/tournaments/[id]
- * Delete tournament (Admin only)
+ * Delete tournament (Host who owns it or Admin)
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
@@ -199,20 +199,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return unauthorizedResponse();
     }
 
-    // Check if user is admin (by username)
-    const userResult = await pool.query(
-      "SELECT is_host, username FROM users WHERE id = $1",
-      [user.id]
-    );
-    const dbUser = userResult.rows[0];
-
-    if (dbUser?.username !== "admin") {
-      return errorResponse("Only admins can delete tournaments", 403);
-    }
-
-    // Check if tournament exists
+    // Check if tournament exists and get owner info
     const tournamentResult = await pool.query(
-      "SELECT id FROM tournaments WHERE id = $1",
+      "SELECT id, host_id, is_template FROM tournaments WHERE id = $1",
       [id]
     );
 
@@ -220,10 +209,46 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return notFoundResponse("Tournament not found");
     }
 
+    const tournament = tournamentResult.rows[0];
+
+    // Check if user is admin or the host who owns this tournament
+    const userResult = await pool.query(
+      "SELECT is_host, username FROM users WHERE id = $1",
+      [user.id]
+    );
+    const dbUser = userResult.rows[0];
+
+    // Admin check: only username "admin" is considered admin
+    const isAdmin = dbUser?.username?.toLowerCase() === "admin";
+    
+    // Owner check: compare as strings to handle UUID/number type mismatches
+    const isOwner = String(tournament.host_id) === String(user.id);
+    
+    // Host check: user has host privileges
+    const isHost = dbUser?.is_host === true;
+
+    console.log("Delete check:", { 
+      tournamentHostId: tournament.host_id, 
+      userId: user.id, 
+      isOwner, 
+      isAdmin,
+      isHost,
+      username: dbUser?.username 
+    });
+
+    // Allow delete if: admin, OR owner, OR host who owns this tournament
+    if (!isAdmin && !isOwner) {
+      return errorResponse("You can only delete your own tournaments", 403);
+    }
+
     // Delete tournament (cascades to registrations, matches, etc.)
     await pool.query("DELETE FROM tournaments WHERE id = $1", [id]);
 
-    return successResponse(null, "Tournament deleted successfully");
+    const message = tournament.is_template 
+      ? "Scheduled template deleted successfully" 
+      : "Tournament deleted successfully";
+
+    return successResponse(null, message);
   } catch (error) {
     console.error("Delete tournament error:", error);
     return serverErrorResponse(error);

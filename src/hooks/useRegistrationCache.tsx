@@ -83,13 +83,27 @@ export function RegistrationCacheProvider({ children }: { children: ReactNode })
       }
 
       try {
-        // Initialize from IndexedDB (instant, no network)
-        const cachedIds = await initRegistrationCache((updatedIds) => {
+        // Initialize from IndexedDB with timeout (prevent hanging)
+        const INIT_TIMEOUT = 3000; // 3 second timeout
+        
+        const initPromise = initRegistrationCache((updatedIds) => {
           // Callback for cross-tab updates
           if (mountedRef.current) {
             setRegisteredIds(updatedIds);
           }
         });
+        
+        const timeoutPromise = new Promise<Set<number>>((_, reject) => 
+          setTimeout(() => reject(new Error('IndexedDB timeout')), INIT_TIMEOUT)
+        );
+        
+        let cachedIds: Set<number>;
+        try {
+          cachedIds = await Promise.race([initPromise, timeoutPromise]);
+        } catch (timeoutError) {
+          console.warn("IndexedDB init timed out, using empty cache:", timeoutError);
+          cachedIds = new Set();
+        }
 
         if (mountedRef.current) {
           setRegisteredIds(cachedIds);

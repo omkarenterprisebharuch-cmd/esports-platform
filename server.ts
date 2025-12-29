@@ -2,9 +2,8 @@ import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
 import { config } from "dotenv";
-import { initializeSocketServer } from "./src/lib/socket-io";
 
-// Load environment variables from .env.local
+// Load environment variables from .env.local FIRST before any other imports
 config({ path: ".env.local" });
 
 const dev = process.env.NODE_ENV !== "production";
@@ -15,7 +14,10 @@ const socketPort = parseInt(process.env.SOCKET_PORT || "3001", 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-app.prepare().then(() => {
+app.prepare().then(async () => {
+  // Dynamically import modules that depend on environment variables (db.ts)
+  const { initializeSocketServer } = await import("./src/lib/socket-io");
+  
   // Create Next.js HTTP server
   const nextServer = createServer((req, res) => {
     // Note: url.parse is deprecated but Next.js handle() requires UrlWithParsedQuery
@@ -38,4 +40,9 @@ app.prepare().then(() => {
   socketServer.listen(socketPort, () => {
     console.log(`> Socket.io server running on ws://${hostname}:${socketPort}`);
   });
+
+  // Dynamically import and start the tournament scheduler
+  // This ensures environment variables are loaded before db.ts is imported
+  const { startTournamentScheduler } = await import("./src/lib/tournament-scheduler");
+  startTournamentScheduler();
 });

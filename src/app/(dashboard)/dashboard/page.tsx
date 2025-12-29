@@ -177,10 +177,15 @@ export default function DashboardPage() {
                       ✓ You & your team is already registered
                     </div>
                   ) : (() => {
-                    const now = new Date();
-                    const regStart = new Date(tournament.registration_start_date);
-                    const regEnd = new Date(tournament.registration_end_date);
-                    const isOpen = now >= regStart && now < regEnd;
+                    const now = Date.now();
+                    // Parse dates properly - ensure they're treated as proper timestamps
+                    const regStartStr = tournament.registration_start_date?.toString() || '';
+                    const regEndStr = tournament.registration_end_date?.toString() || '';
+                    const regStart = new Date(regStartStr).getTime();
+                    const regEnd = new Date(regEndStr).getTime();
+                    // Check if dates are valid
+                    const hasValidDates = !isNaN(regStart) && !isNaN(regEnd);
+                    const isOpen = hasValidDates && now >= regStart && now < regEnd;
                     const hasSpots = tournament.current_teams < tournament.max_teams;
                     
                     if (isOpen && hasSpots) {
@@ -196,7 +201,7 @@ export default function DashboardPage() {
                           Register Now
                         </button>
                       );
-                    } else if (now < regStart) {
+                    } else if (hasValidDates && now < regStart) {
                       return (
                         <div className="py-2 bg-gray-100 text-gray-500 font-medium rounded-lg text-sm text-center">
                           Coming Soon

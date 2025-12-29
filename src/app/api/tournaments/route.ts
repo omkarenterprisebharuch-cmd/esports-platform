@@ -72,6 +72,15 @@ export async function GET(request: NextRequest) {
     const params: (string | number)[] = [];
     let paramIndex = 1;
 
+    // Check if we want templates or regular tournaments
+    const templates = searchParams.get("templates");
+    if (templates === "true") {
+      query += ` AND t.is_template = TRUE`;
+    } else {
+      // By default, exclude templates from regular listings
+      query += ` AND (t.is_template = FALSE OR t.is_template IS NULL)`;
+    }
+
     // Filter by host
     if (hosted === "true" && userId) {
       query += ` AND t.host_id = $${paramIndex}`;
@@ -151,6 +160,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/tournaments
  * Create a new tournament (Host/Admin only)
+ * Supports schedule_type: "once" (one-time) or "everyday" (recurring daily)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -188,6 +198,9 @@ export async function POST(request: NextRequest) {
       registration_end_date,
       total_matches,
       tournament_banner_url,
+      // Auto-scheduling fields
+      schedule_type = "once",
+      publish_time,
     } = body;
 
     // Validate required fields
@@ -202,6 +215,16 @@ export async function POST(request: NextRequest) {
         "Tournament name, description, prize pool, start date, and end date are required"
       );
     }
+
+    // Validate everyday schedule requires publish_time
+    if (schedule_type === "everyday" && !publish_time) {
+      return errorResponse(
+        "Publish time is required for everyday scheduled tournaments"
+      );
+    }
+
+    // For everyday schedule, create as template
+    const isTemplate = schedule_type === "everyday";
 
     const result = await pool.query(
       `INSERT INTO tournaments (
@@ -221,8 +244,11 @@ export async function POST(request: NextRequest) {
         registration_start_date,
         registration_end_date,
         tournament_start_date,
-        tournament_end_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        tournament_end_date,
+        schedule_type,
+        publish_time,
+        is_template
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *`,
       [
         user.id,
@@ -237,17 +263,24 @@ export async function POST(request: NextRequest) {
         match_rules || "",
         map_name || "",
         total_matches || 1,
-        "upcoming",
+        isTemplate ? "template" : "upcoming",
         registration_start_date || new Date(),
         registration_end_date || tournament_start_date,
         tournament_start_date,
         tournament_end_date,
+        schedule_type,
+        publish_time || null,
+        isTemplate,
       ]
     );
 
+    const message = isTemplate 
+      ? `Tournament template created! It will auto-publish daily at ${publish_time}`
+      : "Tournament created successfully";
+
     return successResponse(
       { tournament: result.rows[0] },
-      "Tournament created successfully",
+      message,
       201
     );
   } catch (error) {
