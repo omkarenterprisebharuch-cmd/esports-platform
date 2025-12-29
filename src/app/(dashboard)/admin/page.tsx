@@ -238,6 +238,8 @@ export default function AdminPage() {
       registration_end_date: formatDateTimeForInput(tournament.registration_end_date),
       tournament_start_date: formatDateTimeForInput(tournament.tournament_start_date),
       tournament_end_date: formatDateTimeForInput(tournament.tournament_end_date),
+      schedule_type: "once",
+      publish_time: "",
     });
     setActiveTab("edit");
   };
