@@ -10,6 +10,11 @@ import {
 import { z } from "zod";
 import { validateWithSchema, validationErrorResponse } from "@/lib/validations";
 import { sanitizeUsername, sanitizeText, sanitizeUrl, sanitizeGameUid } from "@/lib/sanitize";
+import { 
+  encryptPhoneNumber, 
+  encryptInGameIds, 
+  decryptUserPII 
+} from "@/lib/encryption";
 
 // Schema for updating profile
 const updateProfileSchema = z.object({
@@ -74,7 +79,9 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse("User not found");
     }
 
-    const userData = result.rows[0];
+    // Decrypt PII fields (phone_number, in_game_ids)
+    const userData = decryptUserPII(result.rows[0]);
+    
     return successResponse({ 
       user: {
         ...userData,
@@ -148,14 +155,18 @@ export async function PUT(request: NextRequest) {
     }
 
     if (phone_number !== undefined) {
+      // Encrypt phone number before storing
+      const encryptedPhone = encryptPhoneNumber(phone_number);
       updates.push(`phone_number = $${paramIndex}`);
-      values.push(phone_number);
+      values.push(encryptedPhone);
       paramIndex++;
     }
 
     if (sanitizedInGameIds !== undefined) {
+      // Encrypt in-game IDs before storing
+      const encryptedGameIds = encryptInGameIds(sanitizedInGameIds);
       updates.push(`in_game_ids = $${paramIndex}`);
-      values.push(JSON.stringify(sanitizedInGameIds));
+      values.push(encryptedGameIds ? JSON.stringify(encryptedGameIds) : null);
       paramIndex++;
     }
 
@@ -179,8 +190,11 @@ export async function PUT(request: NextRequest) {
       values
     );
 
+    // Decrypt PII fields before returning to client
+    const updatedUser = decryptUserPII(result.rows[0]);
+
     return successResponse(
-      { user: result.rows[0] },
+      { user: updatedUser },
       "Profile updated successfully"
     );
   } catch (error) {

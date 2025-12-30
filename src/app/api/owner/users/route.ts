@@ -8,6 +8,7 @@ import {
   errorResponse,
 } from "@/lib/api-response";
 import { UserRole } from "@/types";
+import { decryptPhoneNumber } from "@/lib/encryption";
 
 /**
  * GET /api/owner/users
@@ -74,8 +75,14 @@ export async function GET(request: NextRequest) {
       [...params, limit, offset]
     );
 
+    // Decrypt phone numbers for admin view
+    const users = usersResult.rows.map(user => ({
+      ...user,
+      phone_number: decryptPhoneNumber(user.phone_number),
+    }));
+
     return successResponse({
-      users: usersResult.rows,
+      users,
       pagination: {
         page,
         limit,

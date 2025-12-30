@@ -6,6 +6,7 @@ import {
   unauthorizedResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
+import { decryptTeamMemberGameUid } from "@/lib/encryption";
 
 /**
  * GET /api/teams/my-teams
@@ -41,7 +42,10 @@ export async function GET(request: NextRequest) {
       [user.id]
     );
 
-    return successResponse({ teams: result.rows });
+    // Decrypt game_uid for each team
+    const teams = result.rows.map(team => decryptTeamMemberGameUid(team));
+
+    return successResponse({ teams });
   } catch (error) {
     console.error("Get my teams error:", error);
     return serverErrorResponse(error);

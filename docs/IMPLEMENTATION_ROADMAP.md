@@ -139,10 +139,16 @@
   - Admin review queue
 
 ### 1.5 Data Protection (Week 3)
-- [ ] **Data encryption for sensitive information**
-  - Encrypt PII at rest (game IDs, phone numbers)
-  - Use AES-256 encryption
-  - Implement key management
+- [x] **Data encryption for sensitive information** ✅ (Implemented December 30, 2025)
+  - Created `encryption.ts` utility with AES-256-GCM authenticated encryption
+  - Encrypts PII at rest: phone_number (users), in_game_ids (users), game_uid (team_members)
+  - Unique IV (Initialization Vector) per encryption for maximum security
+  - Authentication tag prevents data tampering
+  - Secure key derivation using PBKDF2 with SHA-512
+  - Key management via ENCRYPTION_KEY environment variable
+  - Backward compatible: safely handles unencrypted legacy data
+  - Applied to: user profile API, auth/me, teams routes, owner/users
+  - Files: `encryption.ts`, `users/profile/route.ts`, `auth/me/route.ts`, `teams/*.ts`, `owner/users/route.ts`
 
 - [ ] **GDPR-compliant data handling**
   - Add data export functionality

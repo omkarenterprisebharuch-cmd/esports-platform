@@ -6,6 +6,7 @@ import {
   unauthorizedResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
+import { decryptUserPII } from "@/lib/encryption";
 
 /**
  * GET /api/auth/me
@@ -32,7 +33,9 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse("User not found");
     }
 
-    const user = result.rows[0];
+    // Decrypt PII fields (phone_number, in_game_ids)
+    const user = decryptUserPII(result.rows[0]);
+    
     return successResponse({
       ...user,
       avatar_url: user.profile_picture_url, // alias for frontend compatibility

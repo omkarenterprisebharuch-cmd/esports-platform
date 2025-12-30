@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 import { validateWithSchema, validationErrorResponse } from "@/lib/validations";
 import { sanitizeTeamName, sanitizeGameUid, sanitizeText } from "@/lib/sanitize";
+import { encryptGameUid, decryptTeamMemberGameUid } from "@/lib/encryption";
 
 // Schema for creating a team
 const createTeamSchema = z.object({
@@ -69,7 +70,10 @@ export async function GET(request: NextRequest) {
       [user.id]
     );
 
-    return successResponse({ teams: result.rows });
+    // Decrypt game_uid for each team member
+    const teams = result.rows.map(team => decryptTeamMemberGameUid(team));
+
+    return successResponse({ teams });
   } catch (error) {
     console.error("Get teams error:", error);
     return serverErrorResponse(error);
@@ -137,11 +141,14 @@ export async function POST(request: NextRequest) {
 
       const team = teamResult.rows[0];
 
+      // Encrypt game_uid before storing
+      const encryptedGameUid = encryptGameUid(sanitizedGameUid);
+
       // Add captain as team member
       await client.query(
         `INSERT INTO team_members (team_id, user_id, role, game_uid, game_name)
          VALUES ($1, $2, 'captain', $3, $4)`,
-        [team.id, user.id, sanitizedGameUid, sanitizedGameName]
+        [team.id, user.id, encryptedGameUid, sanitizedGameName]
       );
 
       return team;

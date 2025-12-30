@@ -8,6 +8,7 @@ import {
   unauthorizedResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
+import { decryptTeamMemberGameUid } from "@/lib/encryption";
 
 interface RouteParams {
   params: Promise<{ teamId: string }>;
@@ -61,10 +62,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [teamId]
     );
 
+    // Decrypt game_uid for each member
+    const members = membersResult.rows.map(member => decryptTeamMemberGameUid(member));
+
     return successResponse({
       team: {
         ...team,
-        members: membersResult.rows,
+        members,
         is_captain: team.captain_id === user.id,
       },
     });

@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 import { validateWithSchema, validationErrorResponse } from "@/lib/validations";
 import { sanitizeGameUid, sanitizeText } from "@/lib/sanitize";
+import { encryptGameUid } from "@/lib/encryption";
 
 // Schema for joining a team
 const joinTeamSchema = z.object({
@@ -91,11 +92,14 @@ export async function POST(request: NextRequest) {
         throw new Error("You are already a member of this team");
       }
 
+      // Encrypt game_uid before storing
+      const encryptedGameUid = encryptGameUid(sanitizedGameUid);
+
       // Add user to team
       await client.query(
         `INSERT INTO team_members (team_id, user_id, role, game_uid, game_name)
          VALUES ($1, $2, 'member', $3, $4)`,
-        [team.id, user.id, sanitizedGameUid, sanitizedGameName]
+        [team.id, user.id, encryptedGameUid, sanitizedGameName]
       );
 
       // Update team member count
