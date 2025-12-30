@@ -11,7 +11,20 @@ import { sanitizeTournamentName, sanitizeDescription, sanitizeText, sanitizeUrl 
 
 /**
  * GET /api/tournaments
- * Get all tournaments with filtering
+ * Get all tournaments with filtering and sorting
+ * 
+ * Query params:
+ * - status: filter by status
+ * - game_type: filter by game (freefire, pubg, valorant, codm)
+ * - filter: computed status filter (upcoming, live, active, ongoing)
+ * - hosted: true to show only user's hosted tournaments
+ * - min_prize: minimum prize pool
+ * - max_prize: maximum prize pool
+ * - start_date: filter tournaments starting after this date
+ * - end_date: filter tournaments starting before this date
+ * - sort: sorting option (prize_desc, prize_asc, date_asc, date_desc, popularity)
+ * - page: pagination page number
+ * - limit: results per page
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +33,11 @@ export async function GET(request: NextRequest) {
     const gameType = searchParams.get("game_type");
     const filter = searchParams.get("filter");
     const hosted = searchParams.get("hosted");
+    const minPrize = searchParams.get("min_prize");
+    const maxPrize = searchParams.get("max_prize");
+    const startDate = searchParams.get("start_date");
+    const endDate = searchParams.get("end_date");
+    const sort = searchParams.get("sort") || "date_asc";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = (page - 1) * limit;
@@ -112,7 +130,60 @@ export async function GET(request: NextRequest) {
       paramIndex++;
     }
 
-    query += ` ORDER BY t.registration_start_date ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    // Prize pool range filters
+    if (minPrize) {
+      const minPrizeNum = parseFloat(minPrize);
+      if (!isNaN(minPrizeNum)) {
+        query += ` AND t.prize_pool >= $${paramIndex}`;
+        params.push(minPrizeNum);
+        paramIndex++;
+      }
+    }
+
+    if (maxPrize) {
+      const maxPrizeNum = parseFloat(maxPrize);
+      if (!isNaN(maxPrizeNum)) {
+        query += ` AND t.prize_pool <= $${paramIndex}`;
+        params.push(maxPrizeNum);
+        paramIndex++;
+      }
+    }
+
+    // Date range filters
+    if (startDate) {
+      query += ` AND t.tournament_start_date >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND t.tournament_start_date <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
+    // Sorting options
+    let orderBy = "t.registration_start_date ASC"; // default
+    switch (sort) {
+      case "prize_desc":
+        orderBy = "t.prize_pool DESC NULLS LAST";
+        break;
+      case "prize_asc":
+        orderBy = "t.prize_pool ASC NULLS LAST";
+        break;
+      case "date_desc":
+        orderBy = "t.tournament_start_date DESC";
+        break;
+      case "date_asc":
+        orderBy = "t.tournament_start_date ASC";
+        break;
+      case "popularity":
+        // Sort by number of registrations (most popular first)
+        orderBy = "t.max_teams DESC, t.registration_start_date ASC";
+        break;
+    }
+
+    query += ` ORDER BY ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
@@ -123,18 +194,78 @@ export async function GET(request: NextRequest) {
       status: t.computed_status,
     }));
 
-    // Get total count
-    let countQuery = `SELECT COUNT(*) FROM tournaments WHERE 1=1`;
+    // Get total count with same filters (excluding pagination)
+    let countQuery = `SELECT COUNT(*) FROM tournaments t WHERE 1=1`;
+    const countParams: (string | number)[] = [];
+    let countParamIndex = 1;
 
-    if (filter === "upcoming") {
-      countQuery += ` AND registration_start_date > NOW()`;
-    } else if (filter === "live") {
-      countQuery += ` AND registration_start_date <= NOW() AND registration_end_date > NOW()`;
-    } else if (filter === "active") {
-      countQuery += ` AND registration_end_date > NOW()`;
+    // Apply same filters for count
+    const templates2 = searchParams.get("templates");
+    if (templates2 === "true") {
+      countQuery += ` AND t.is_template = TRUE`;
+    } else {
+      countQuery += ` AND (t.is_template = FALSE OR t.is_template IS NULL)`;
     }
 
-    const countResult = await pool.query(countQuery);
+    if (hosted === "true" && userId) {
+      countQuery += ` AND t.host_id = $${countParamIndex}`;
+      countParams.push(userId);
+      countParamIndex++;
+    }
+
+    if (filter === "upcoming") {
+      countQuery += ` AND t.registration_start_date > NOW()`;
+    } else if (filter === "live") {
+      countQuery += ` AND t.registration_start_date <= NOW() AND t.registration_end_date > NOW()`;
+    } else if (filter === "active") {
+      countQuery += ` AND t.registration_end_date > NOW()`;
+    } else if (filter === "ongoing") {
+      countQuery += ` AND t.tournament_start_date <= NOW() AND t.tournament_end_date > NOW()`;
+    }
+
+    if (status) {
+      countQuery += ` AND t.status = $${countParamIndex}`;
+      countParams.push(status);
+      countParamIndex++;
+    }
+
+    if (gameType) {
+      countQuery += ` AND t.game_type = $${countParamIndex}`;
+      countParams.push(gameType);
+      countParamIndex++;
+    }
+
+    if (minPrize) {
+      const minPrizeNum = parseFloat(minPrize);
+      if (!isNaN(minPrizeNum)) {
+        countQuery += ` AND t.prize_pool >= $${countParamIndex}`;
+        countParams.push(minPrizeNum);
+        countParamIndex++;
+      }
+    }
+
+    if (maxPrize) {
+      const maxPrizeNum = parseFloat(maxPrize);
+      if (!isNaN(maxPrizeNum)) {
+        countQuery += ` AND t.prize_pool <= $${countParamIndex}`;
+        countParams.push(maxPrizeNum);
+        countParamIndex++;
+      }
+    }
+
+    if (startDate) {
+      countQuery += ` AND t.tournament_start_date >= $${countParamIndex}`;
+      countParams.push(startDate);
+      countParamIndex++;
+    }
+
+    if (endDate) {
+      countQuery += ` AND t.tournament_start_date <= $${countParamIndex}`;
+      countParams.push(endDate);
+      countParamIndex++;
+    }
+
+    const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].count);
 
     return successResponse(

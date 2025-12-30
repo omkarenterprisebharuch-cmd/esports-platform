@@ -16,6 +16,12 @@ const NotificationPrompt = dynamic(
   { ssr: false, loading: () => null }
 );
 
+// Lazy load notification center
+const NotificationCenter = dynamic(
+  () => import("@/components/notifications/NotificationCenter"),
+  { ssr: false, loading: () => null }
+);
+
 interface User {
   id: number;
   username: string;
@@ -343,8 +349,13 @@ export default function DashboardLayout({
         </button>
       </aside>
 
+      {/* Desktop Top Bar */}
+      <div className="hidden lg:flex fixed top-0 right-0 left-64 h-14 bg-white/95 backdrop-blur border-b border-gray-200 px-6 items-center justify-end z-10">
+        <NotificationCenter />
+      </div>
+
       {/* Main Content */}
-      <main className="lg:ml-64 min-h-screen">
+      <main className="lg:ml-64 lg:pt-14 min-h-screen">
         {/* Mobile Header */}
         <header className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-3 flex items-center justify-between lg:hidden">
           <button
@@ -368,7 +379,7 @@ export default function DashboardLayout({
           <span className="font-bold text-gray-900 flex items-center gap-2">
             Esports Platform
           </span>
-          <div className="w-10"></div>
+          <NotificationCenter />
         </header>
 
         <div className="p-6">

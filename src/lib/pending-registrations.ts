@@ -7,6 +7,9 @@ interface PendingRegistration {
   email: string;
   hashedPassword: string;
   createdAt: number;
+  // GDPR consent tracking
+  consentIp?: string;
+  consentUserAgent?: string;
 }
 
 export const pendingRegistrations = new Map<string, PendingRegistration>();

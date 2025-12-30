@@ -15,6 +15,8 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    acceptPrivacyPolicy: false,
+    acceptTerms: false,
   });
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +26,11 @@ export default function RegisterPage() {
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!form.acceptPrivacyPolicy || !form.acceptTerms) {
+      setError("You must accept the Privacy Policy and Terms of Service");
+      return;
+    }
 
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match");
@@ -194,6 +201,43 @@ export default function RegisterPage() {
                   required
                   autoComplete="new-password"
                 />
+              </div>
+
+              {/* Privacy Policy & Terms Checkboxes */}
+              <div className="space-y-3 pt-2">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.acceptPrivacyPolicy}
+                    onChange={(e) =>
+                      setForm({ ...form, acceptPrivacyPolicy: e.target.checked })
+                    }
+                    className="mt-1 w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+                  />
+                  <span className="text-sm text-gray-600">
+                    I have read and agree to the{" "}
+                    <Link href="/privacy-policy" className="text-gray-900 underline hover:no-underline" target="_blank">
+                      Privacy Policy
+                    </Link>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.acceptTerms}
+                    onChange={(e) =>
+                      setForm({ ...form, acceptTerms: e.target.checked })
+                    }
+                    className="mt-1 w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+                  />
+                  <span className="text-sm text-gray-600">
+                    I accept the{" "}
+                    <Link href="/terms" className="text-gray-900 underline hover:no-underline" target="_blank">
+                      Terms of Service
+                    </Link>
+                  </span>
+                </label>
               </div>
 
               <button
