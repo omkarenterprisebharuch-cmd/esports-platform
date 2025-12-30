@@ -8,7 +8,8 @@ import {
   generateCsrfToken,
   AUTH_COOKIE_OPTIONS,
   REFRESH_COOKIE_OPTIONS,
-  CSRF_COOKIE_OPTIONS 
+  CSRF_COOKIE_OPTIONS,
+  REMEMBER_ME_EXPIRY_DAYS,
 } from "@/lib/auth";
 import {
   errorResponse,
@@ -28,9 +29,9 @@ import {
 
 /**
  * POST /api/auth/login
- * User login with access token (15min) + refresh token (7 days)
+ * User login with access token (15min) + refresh token (7 days or 30 days with remember_me)
  * - Access token: httpOnly cookie (15 min expiry)
- * - Refresh token: httpOnly cookie (7 day expiry), hash stored in DB
+ * - Refresh token: httpOnly cookie (7 day expiry, or 30 days with remember_me), hash stored in DB
  * Rate limited: 5 attempts per 15 minutes
  */
 export async function POST(request: NextRequest) {
@@ -50,11 +51,11 @@ export async function POST(request: NextRequest) {
       return validationErrorResponse(validation.error, validation.details);
     }
     
-    const { email, password } = validation.data;
+    const { email, password, remember_me } = validation.data;
 
-    // Find user by email (including role)
+    // Find user by email (including role and email_verified)
     const result = await pool.query(
-      "SELECT *, COALESCE(role, 'player') as role FROM users WHERE email = $1", 
+      "SELECT *, COALESCE(role, 'player') as role, COALESCE(email_verified, FALSE) as email_verified FROM users WHERE email = $1", 
       [email]
     );
 
@@ -70,23 +71,30 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid credentials", 401);
     }
 
-    // Generate access token (15 min) with role
+    // Generate access token (15 min) with role and email_verified
     const accessToken = generateAccessToken({
       id: user.id,
       email: user.email,
       username: user.username,
       is_host: user.is_host,
       role: user.role,
+      email_verified: user.email_verified,
     });
 
     // Generate refresh token and store hash in database
+    // Expiry depends on remember_me: 30 days if checked, 7 days otherwise
     const { token: refreshToken, hash: refreshTokenHash } = generateRefreshToken();
-    const refreshTokenExpiry = getRefreshTokenExpiry();
+    const refreshTokenExpiry = remember_me 
+      ? new Date(Date.now() + REMEMBER_ME_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+      : getRefreshTokenExpiry();
+    const refreshCookieMaxAge = remember_me 
+      ? REMEMBER_ME_EXPIRY_DAYS * 24 * 60 * 60 
+      : REFRESH_COOKIE_OPTIONS.maxAge;
 
     // Get device info for security tracking
     const userAgent = request.headers.get("user-agent") || "unknown";
 
-    // Store refresh token hash in database
+    // Store refresh token hash in database (with remember_me flag)
     await pool.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address)
        VALUES ($1, $2, $3, $4, $5)`,
@@ -125,13 +133,13 @@ export async function POST(request: NextRequest) {
       maxAge: AUTH_COOKIE_OPTIONS.maxAge,
     });
 
-    // Set httpOnly cookie for refresh token (7 days)
+    // Set httpOnly cookie for refresh token (7 days, or 30 days with remember_me)
     response.cookies.set(REFRESH_COOKIE_OPTIONS.name, refreshToken, {
       httpOnly: REFRESH_COOKIE_OPTIONS.httpOnly,
       secure: REFRESH_COOKIE_OPTIONS.secure,
       sameSite: REFRESH_COOKIE_OPTIONS.sameSite,
       path: REFRESH_COOKIE_OPTIONS.path,
-      maxAge: REFRESH_COOKIE_OPTIONS.maxAge,
+      maxAge: refreshCookieMaxAge,
     });
 
     // Set CSRF token cookie (readable by JavaScript for inclusion in requests)

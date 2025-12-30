@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-response";
 import { z } from "zod";
 import { validateWithSchema, validationErrorResponse } from "@/lib/validations";
+import { sanitizeUsername, sanitizeText, sanitizeUrl, sanitizeGameUid } from "@/lib/sanitize";
 
 // Schema for updating profile
 const updateProfileSchema = z.object({
@@ -108,27 +109,41 @@ export async function PUT(request: NextRequest) {
     
     const { username, phone_number, in_game_ids, avatar_url, full_name } = validation.data;
 
+    // Sanitize user inputs
+    const sanitizedUsername = username ? sanitizeUsername(username) : undefined;
+    const sanitizedFullName = full_name ? sanitizeText(full_name, 100) : undefined;
+    const sanitizedAvatarUrl = avatar_url ? sanitizeUrl(avatar_url) : (avatar_url === "" ? "" : undefined);
+    // Sanitize in_game_ids object values
+    const sanitizedInGameIds = in_game_ids 
+      ? Object.fromEntries(
+          Object.entries(in_game_ids).map(([key, value]) => [
+            sanitizeText(key, 50),
+            sanitizeGameUid(value)
+          ])
+        )
+      : undefined;
+
     const updates: string[] = [];
     const values: unknown[] = [];
     let paramIndex = 1;
 
-    if (username !== undefined) {
+    if (sanitizedUsername !== undefined) {
       // Check if username is taken
       const existing = await pool.query(
         "SELECT id FROM users WHERE username = $1 AND id != $2",
-        [username, user.id]
+        [sanitizedUsername, user.id]
       );
       if (existing.rows.length > 0) {
         return errorResponse("Username is already taken");
       }
       updates.push(`username = $${paramIndex}`);
-      values.push(username);
+      values.push(sanitizedUsername);
       paramIndex++;
     }
 
-    if (full_name !== undefined) {
+    if (sanitizedFullName !== undefined) {
       updates.push(`full_name = $${paramIndex}`);
-      values.push(full_name);
+      values.push(sanitizedFullName);
       paramIndex++;
     }
 
@@ -138,15 +153,15 @@ export async function PUT(request: NextRequest) {
       paramIndex++;
     }
 
-    if (in_game_ids !== undefined) {
+    if (sanitizedInGameIds !== undefined) {
       updates.push(`in_game_ids = $${paramIndex}`);
-      values.push(JSON.stringify(in_game_ids));
+      values.push(JSON.stringify(sanitizedInGameIds));
       paramIndex++;
     }
 
-    if (avatar_url !== undefined) {
+    if (sanitizedAvatarUrl !== undefined) {
       updates.push(`profile_picture_url = $${paramIndex}`);
-      values.push(avatar_url);
+      values.push(sanitizedAvatarUrl);
       paramIndex++;
     }
 

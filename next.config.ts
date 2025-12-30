@@ -86,9 +86,57 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // Headers for better caching
+  // Headers for security and caching
   async headers() {
+    // Content Security Policy - adjust as needed for your CDN/external resources
+    const cspHeader = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-inline/eval for dev
+      "style-src 'self' 'unsafe-inline'", // Tailwind uses inline styles
+      "img-src 'self' data: blob: https://res.cloudinary.com https://ui-avatars.com",
+      "font-src 'self' data:",
+      "connect-src 'self' https://res.cloudinary.com wss: ws:", // WebSocket for Socket.io
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    // Security headers applied to all routes
+    const securityHeaders = [
+      {
+        key: "Content-Security-Policy",
+        value: process.env.NODE_ENV === "production" ? cspHeader : "", // Only in production
+      },
+      {
+        key: "X-Content-Type-Options",
+        value: "nosniff",
+      },
+      {
+        key: "X-Frame-Options",
+        value: "DENY",
+      },
+      {
+        key: "X-XSS-Protection",
+        value: "1; mode=block",
+      },
+      {
+        key: "Referrer-Policy",
+        value: "strict-origin-when-cross-origin",
+      },
+      {
+        key: "Permissions-Policy",
+        value: "camera=(), microphone=(), geolocation=(), payment=()",
+      },
+    ].filter(h => h.value); // Remove empty headers
+
     return [
+      {
+        // Apply security headers to all routes
+        source: "/:path*",
+        headers: securityHeaders,
+      },
       {
         source: "/api/tournaments",
         headers: [

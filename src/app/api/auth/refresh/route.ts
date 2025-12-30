@@ -41,9 +41,11 @@ export async function POST(request: NextRequest) {
     // Hash the token to look up in database
     const tokenHash = hashToken(refreshToken);
 
-    // Find the refresh token in database (including user role)
+    // Find the refresh token in database (including user role and email_verified)
     const tokenResult = await pool.query(
-      `SELECT rt.*, u.id as user_id, u.email, u.username, u.is_host, COALESCE(u.role, 'player') as role
+      `SELECT rt.*, u.id as user_id, u.email, u.username, u.is_host, 
+              COALESCE(u.role, 'player') as role,
+              COALESCE(u.email_verified, FALSE) as email_verified
        FROM refresh_tokens rt
        JOIN users u ON rt.user_id = u.id
        WHERE rt.token_hash = $1 
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
       username: tokenRecord.username,
       is_host: tokenRecord.is_host,
       role: tokenRecord.role,
+      email_verified: tokenRecord.email_verified,
     };
 
     // TOKEN ROTATION: Revoke the old refresh token
@@ -84,7 +87,7 @@ export async function POST(request: NextRequest) {
       [tokenHash]
     );
 
-    // Generate new access token (with role)
+    // Generate new access token (with role and email_verified)
     const newAccessToken = generateAccessToken(user);
 
     // Generate new refresh token (rotation)

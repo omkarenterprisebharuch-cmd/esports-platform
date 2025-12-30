@@ -57,6 +57,7 @@ logs
 # Playwright
 .playwright-mcp/
 playwright-report/
+.migrations/
 test-results/
 
 # OS files

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import pool from "@/lib/db";
-import { generateToken } from "@/lib/auth";
+import { generateAccessToken } from "@/lib/auth";
 import { verifyOTP } from "@/lib/otp";
 import { getPendingRegistration, deletePendingRegistration } from "@/lib/pending-registrations";
 import {
@@ -58,10 +58,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create user in database
+    // Create user in database with email_verified = TRUE (OTP verified email)
     const result = await pool.query(
-      `INSERT INTO users (username, email, password_hash, is_verified)
-       VALUES ($1, $2, $3, TRUE) RETURNING id, username, email, is_host`,
+      `INSERT INTO users (username, email, password_hash, is_verified, email_verified)
+       VALUES ($1, $2, $3, TRUE, TRUE) RETURNING id, username, email, is_host, email_verified`,
       [pendingData.username, pendingData.email, pendingData.hashedPassword]
     );
 
@@ -69,7 +69,13 @@ export async function POST(request: NextRequest) {
     deletePendingRegistration(email);
 
     const user = result.rows[0];
-    const token = generateToken(user);
+    const token = generateAccessToken({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      is_host: user.is_host || false,
+      email_verified: user.email_verified,
+    });
 
     return successResponse({
       token,
@@ -78,6 +84,7 @@ export async function POST(request: NextRequest) {
         username: user.username,
         email: user.email,
         is_host: user.is_host,
+        email_verified: user.email_verified,
       },
     }, "Registration successful");
   } catch (error) {

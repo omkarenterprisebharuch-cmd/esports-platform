@@ -7,7 +7,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { LoaderProvider, Loader, NavigationLoader } from "@/components/ui/Loader";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
-import { RegistrationCacheProvider, clearRegistrationCache } from "@/hooks/useRegistrationCache";
+import { RegistrationCacheProvider, clearRegistrationCache, useIdleTimeout, clearSessionData } from "@/hooks";
 import { api, logout, isAuthenticated } from "@/lib/api-client";
 
 // Lazy load notification prompt - not critical for initial render
@@ -49,9 +49,26 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [teamsCount, setTeamsCount] = useState(cachedTeamsCount);
   const [initialLoading, setInitialLoading] = useState(!cachedUser);
+  const [showIdleWarning, setShowIdleWarning] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const fetchedRef = useRef(false);
+
+  // Idle timeout - auto-logout after 30 minutes of inactivity
+  useIdleTimeout({
+    enabled: !!user, // Only track when user is logged in
+    timeout: 30 * 60 * 1000, // 30 minutes
+    warningTime: 2 * 60 * 1000, // Show warning 2 minutes before
+    onWarning: () => {
+      setShowIdleWarning(true);
+    },
+    onIdle: () => {
+      // Clear caches before logout
+      cachedUser = null;
+      cachedTeamsCount = 0;
+      cacheTimestamp = 0;
+    },
+  });
 
   const fetchUserData = useCallback(async (forceRefresh = false) => {
     // Check if user is authenticated via cookie
@@ -137,10 +154,17 @@ export default function DashboardLayout({
     cachedUser = null;
     cachedTeamsCount = 0;
     cacheTimestamp = 0;
+    // Clear session data (idle timeout tracking)
+    clearSessionData();
     // Clear registration cache (IndexedDB + memory)
     await clearRegistrationCache();
     // Use secure logout (clears httpOnly cookies server-side and redirects)
     await logout();
+  };
+
+  // Dismiss idle warning (user became active)
+  const dismissIdleWarning = () => {
+    setShowIdleWarning(false);
   };
 
   const isAdminOrHost = user?.is_admin === true || user?.is_host === true;
@@ -356,6 +380,34 @@ export default function DashboardLayout({
 
       {/* Notification Permission Prompt */}
       <NotificationPrompt showOnDenied />
+      
+      {/* Idle Warning Modal */}
+      {showIdleWarning && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200"
+            onClick={dismissIdleWarning}
+          >
+            <div className="text-center">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Session Expiring Soon</h3>
+              <p className="text-gray-600 mb-6">
+                You&apos;ve been inactive for a while. Your session will expire in 2 minutes.
+              </p>
+              <button
+                onClick={dismissIdleWarning}
+                className="w-full py-3 px-4 bg-gray-900 text-white font-semibold rounded-lg hover:bg-gray-800 transition"
+              >
+                I&apos;m Still Here
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Navigation Loader - shows during page transitions */}
       <Suspense fallback={null}>

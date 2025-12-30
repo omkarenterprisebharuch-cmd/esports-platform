@@ -7,6 +7,7 @@ import {
   unauthorizedResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
+import { sanitizeTournamentName, sanitizeDescription, sanitizeText, sanitizeUrl } from "@/lib/sanitize";
 
 /**
  * GET /api/tournaments
@@ -252,16 +253,16 @@ export async function POST(request: NextRequest) {
       RETURNING *`,
       [
         user.id,
-        tournament_name,
+        sanitizeTournamentName(tournament_name), // XSS protection
         game_type || "freefire",
         tournament_type || "squad",
-        description,
-        tournament_banner_url || null,
+        sanitizeDescription(description), // XSS protection - allows limited HTML
+        tournament_banner_url ? sanitizeUrl(tournament_banner_url) : null, // URL validation
         max_teams || 100,
         entry_fee || 0,
         prize_pool,
-        match_rules || "",
-        map_name || "",
+        match_rules ? sanitizeDescription(match_rules) : "", // XSS protection
+        map_name ? sanitizeText(map_name, 100) : "", // XSS protection
         total_matches || 1,
         isTemplate ? "template" : "upcoming",
         registration_start_date || new Date(),

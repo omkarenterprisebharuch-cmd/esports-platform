@@ -15,8 +15,15 @@ const CSRF_SECRET = process.env.CSRF_SECRET || crypto.randomBytes(32).toString("
 
 // Token expiration times
 export const ACCESS_TOKEN_EXPIRY = "15m";  // 15 minutes
-export const REFRESH_TOKEN_EXPIRY_DAYS = 7; // 7 days
+export const REFRESH_TOKEN_EXPIRY_DAYS = 7; // 7 days (default)
 export const REFRESH_TOKEN_EXPIRY_MS = REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
+// "Remember me" extended session (30 days)
+export const REMEMBER_ME_EXPIRY_DAYS = 30;
+export const REMEMBER_ME_EXPIRY_MS = REMEMBER_ME_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
+// Idle timeout (30 minutes) - for frontend session management
+export const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export interface TokenPayload {
   id: string; // UUID
@@ -24,6 +31,7 @@ export interface TokenPayload {
   username: string;
   is_host: boolean;
   role: UserRole; // RBAC role
+  email_verified: boolean; // Whether email has been verified
 }
 
 export interface RefreshTokenPayload {
@@ -94,6 +102,7 @@ export function generateAccessToken(user: {
   username: string;
   is_host?: boolean;
   role?: UserRole;
+  email_verified?: boolean;
 }): string {
   return jwt.sign(
     {
@@ -102,6 +111,7 @@ export function generateAccessToken(user: {
       username: user.username,
       is_host: user.is_host || false,
       role: user.role || "player",
+      email_verified: user.email_verified ?? false,
     },
     JWT_SECRET!,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
@@ -308,6 +318,38 @@ export function requireOwner(
   request: { cookies: { get: (name: string) => { value: string } | undefined }; headers: { get: (name: string) => string | null } }
 ): TokenPayload | null {
   return requireRole(request, ["owner"]);
+}
+
+// ============ Email Verification Protection ============
+
+/**
+ * Check if user has verified their email
+ */
+export function isEmailVerified(user: TokenPayload | null): boolean {
+  if (!user) return false;
+  // Default to false if email_verified is not in the token (backwards compatibility)
+  return user.email_verified ?? false;
+}
+
+/**
+ * Require email verification for API route access
+ * Returns the user if email is verified, null if not authenticated or not verified
+ */
+export function requireEmailVerified(
+  request: { cookies: { get: (name: string) => { value: string } | undefined }; headers: { get: (name: string) => string | null } }
+): { user: TokenPayload | null; verified: boolean; error?: string } {
+  const user = getUserFromRequest(request);
+  if (!user) {
+    return { user: null, verified: false, error: "Authentication required" };
+  }
+  
+  // Check if email is verified (default to false for backwards compatibility)
+  const verified = user.email_verified ?? false;
+  if (!verified) {
+    return { user, verified: false, error: "Email verification required" };
+  }
+  
+  return { user, verified: true };
 }
 
 /**

@@ -1,14 +1,16 @@
 import { NextRequest } from "next/server";
 import pool, { withTransaction } from "@/lib/db";
-import { getUserFromRequest } from "@/lib/auth";
+import { getUserFromRequest, requireEmailVerified } from "@/lib/auth";
 import {
   successResponse,
   errorResponse,
   unauthorizedResponse,
+  emailVerificationRequiredResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
 import { z } from "zod";
 import { validateWithSchema, validationErrorResponse } from "@/lib/validations";
+import { sanitizeTeamName, sanitizeGameUid, sanitizeText } from "@/lib/sanitize";
 
 // Schema for creating a team
 const createTeamSchema = z.object({
@@ -77,13 +79,21 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/teams
  * Create a new team
+ * Requires email verification
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = getUserFromRequest(request);
+    // Check authentication and email verification
+    const { user, verified, error } = requireEmailVerified(request);
 
     if (!user) {
       return unauthorizedResponse();
+    }
+
+    if (!verified) {
+      return emailVerificationRequiredResponse(
+        "Please verify your email address before creating a team"
+      );
     }
 
     const body = await request.json();
@@ -95,6 +105,11 @@ export async function POST(request: NextRequest) {
     }
     
     const { team_name, game_uid, game_name } = validation.data;
+
+    // Sanitize user input to prevent XSS
+    const sanitizedTeamName = sanitizeTeamName(team_name);
+    const sanitizedGameUid = sanitizeGameUid(game_uid);
+    const sanitizedGameName = sanitizeText(game_name, 50);
 
     const result = await withTransaction(async (client) => {
       // Generate unique team code
@@ -117,7 +132,7 @@ export async function POST(request: NextRequest) {
         `INSERT INTO teams (team_name, team_code, captain_id, total_members, max_members)
          VALUES ($1, $2, $3, 1, 6)
          RETURNING id, team_name, team_code, captain_id, total_members, max_members, created_at`,
-        [team_name, teamCode!, user.id]
+        [sanitizedTeamName, teamCode!, user.id]
       );
 
       const team = teamResult.rows[0];
@@ -126,7 +141,7 @@ export async function POST(request: NextRequest) {
       await client.query(
         `INSERT INTO team_members (team_id, user_id, role, game_uid, game_name)
          VALUES ($1, $2, 'captain', $3, $4)`,
-        [team.id, user.id, game_uid, game_name]
+        [team.id, user.id, sanitizedGameUid, sanitizedGameName]
       );
 
       return team;

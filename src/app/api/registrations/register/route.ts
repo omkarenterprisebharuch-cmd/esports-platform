@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import pool, { withTransaction } from "@/lib/db";
-import { getUserFromRequest } from "@/lib/auth";
+import { getUserFromRequest, requireEmailVerified } from "@/lib/auth";
 import {
   successResponse,
   errorResponse,
   unauthorizedResponse,
+  emailVerificationRequiredResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
 import { z } from "zod";
@@ -21,13 +22,21 @@ const registerTournamentSchema = z.object({
 /**
  * POST /api/registrations/register
  * Register for a tournament
+ * Requires email verification
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = getUserFromRequest(request);
+    // Check authentication and email verification
+    const { user, verified, error } = requireEmailVerified(request);
 
     if (!user) {
       return unauthorizedResponse();
+    }
+
+    if (!verified) {
+      return emailVerificationRequiredResponse(
+        "Please verify your email address before registering for tournaments"
+      );
     }
 
     const body = await request.json();

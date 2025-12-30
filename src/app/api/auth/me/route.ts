@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
     const result = await pool.query(
       `SELECT id, username, email, full_name, phone_number, is_host, is_verified, 
               profile_picture_url, in_game_ids, wallet_balance, 
-              COALESCE(role, 'player') as role 
+              COALESCE(role, 'player') as role,
+              COALESCE(email_verified, FALSE) as email_verified
        FROM users WHERE id = $1`,
       [tokenUser.id]
     );

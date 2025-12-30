@@ -72,7 +72,18 @@ export async function POST(request: NextRequest) {
       return errorResponse("User not found", 404);
     }
 
-    return successResponse(null, "Password reset successful");
+    const userId = result.rows[0].id;
+
+    // Force logout: Revoke all refresh tokens for this user
+    // This ensures all active sessions are invalidated on password change
+    await pool.query(
+      `UPDATE refresh_tokens 
+       SET revoked = TRUE, revoked_at = NOW() 
+       WHERE user_id = $1 AND revoked = FALSE`,
+      [userId]
+    );
+
+    return successResponse(null, "Password reset successful. Please login with your new password.");
   } catch (error) {
     console.error("Reset password error:", error);
     return serverErrorResponse(error);

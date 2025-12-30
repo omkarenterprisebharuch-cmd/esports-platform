@@ -8,7 +8,7 @@ import { secureFetch, setCachedUser } from "@/lib/api-client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "", remember_me: false });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -36,6 +36,10 @@ export default function LoginPage() {
       // Clear any old localStorage tokens (cleanup)
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      
+      // Initialize session activity tracking
+      localStorage.setItem("last_activity_timestamp", Date.now().toString());
+      localStorage.setItem("session_active", "true");
 
       router.push("/dashboard");
       router.refresh();
@@ -101,9 +105,11 @@ export default function LoginPage() {
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 mr-2 rounded border-gray-300"
+                  checked={form.remember_me}
+                  onChange={(e) => setForm({ ...form, remember_me: e.target.checked })}
+                  className="w-4 h-4 mr-2 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                 />
-                <span className="text-sm text-gray-600">Remember me</span>
+                <span className="text-sm text-gray-600">Remember me for 30 days</span>
               </label>
               <Link
                 href="/forgot-password"

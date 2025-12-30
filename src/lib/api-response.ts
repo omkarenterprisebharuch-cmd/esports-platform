@@ -97,6 +97,23 @@ export function forbiddenResponse(
 }
 
 /**
+ * Email verification required response (403)
+ * Used when user is authenticated but hasn't verified their email
+ */
+export function emailVerificationRequiredResponse(
+  message: string = "Please verify your email address to perform this action"
+): NextResponse<ApiResponse> {
+  return NextResponse.json(
+    {
+      success: false,
+      message,
+      error: "EMAIL_VERIFICATION_REQUIRED",
+    },
+    { status: 403 }
+  );
+}
+
+/**
  * Not found response
  */
 export function notFoundResponse(

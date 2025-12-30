@@ -45,20 +45,27 @@
   - Files: `auth.ts`, `api/owner/users`, `api/owner/stats`, `(dashboard)/owner/page.tsx`
 
 ### 1.2 Account Security (Week 1-2)
-- [ ] **Email verification for new accounts**
-  - Send verification email on registration
-  - Add `email_verified` field to users table
-  - Block unverified users from certain actions
+- [x] **Email verification for new accounts** ✅ (Implemented December 30, 2025)
+  - Added `email_verified` field to users table
+  - Migration: `add_email_verified.sql`
+  - OTP-verified users get email_verified=TRUE automatically
+  - Block unverified users from tournament registration, team creation/joining
+  - Added `requireEmailVerified()` helper in auth.ts
+  - Added `emailVerificationRequiredResponse()` helper in api-response.ts
+  - Token includes email_verified flag for frontend use
 
 - [ ] **Two-factor authentication (2FA) via SMS/Email**
   - Implement TOTP-based 2FA
   - Add backup codes generation
   - Create 2FA setup flow in profile
 
-- [ ] **Session timeout and auto-logout**
-  - Implement idle timeout (30 minutes)
-  - Add "Remember me" option for extended sessions
-  - Force logout on password change
+- [x] **Session timeout and auto-logout** ✅ (Implemented December 30, 2025)
+  - Added `useIdleTimeout` hook with 30-minute idle detection
+  - Cross-tab session sync via localStorage events
+  - Idle warning modal 2 minutes before logout
+  - "Remember me" option extends session to 30 days (vs default 7 days)
+  - Force logout on password change (revokes all refresh tokens)
+  - Files: `useIdleTimeout.ts`, `auth.ts`, `login/route.ts`, `reset-password/route.ts`
 
 ### 1.3 API Security (Week 2)
 - [ ] **Rate limiting on API endpoints** ✅ (Partially implemented)
@@ -75,10 +82,14 @@
   - Audit all database queries
   - Document secure query patterns
 
-- [ ] **XSS protection with sanitization**
-  - Sanitize all user-generated content
-  - Implement Content Security Policy headers
-  - Add DOMPurify for rich text if needed
+- [ ] **XSS protection with sanitization** ✅ (Implemented December 30, 2025)
+  - Created comprehensive `sanitize.ts` utility using isomorphic-dompurify
+  - Functions: `escapeHtml`, `stripHtml`, `sanitizeText`, `sanitizeRichText`, `sanitizeUrl`
+  - Specialized sanitizers: `sanitizeUsername`, `sanitizeTeamName`, `sanitizeTournamentName`, `sanitizeChatMessage`, `sanitizeGameUid`
+  - Applied to: chat messages (chat-utils.ts), tournament creation, team creation/join, user profile updates
+  - Implemented Content Security Policy headers in next.config.ts
+  - Security headers: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+  - Files: `sanitize.ts`, `next.config.ts`, `chat-utils.ts`, `tournaments/route.ts`, `teams/route.ts`, `teams/join/route.ts`, `users/profile/route.ts`
 
 - [ ] **CSRF token protection** ✅ (Implemented)
   - Verify coverage on all state-changing endpoints
@@ -97,7 +108,6 @@
 - [ ] **Multi-device login alerts**
   - Track active sessions per user
   - Send email on new device login
-  - Allow users to view/revoke sessions
 
 - [ ] **IP-based fraud detection**
   - Track login IPs per user

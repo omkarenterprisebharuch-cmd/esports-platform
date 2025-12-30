@@ -1,14 +1,16 @@
 import { NextRequest } from "next/server";
 import pool, { withTransaction } from "@/lib/db";
-import { getUserFromRequest } from "@/lib/auth";
+import { getUserFromRequest, requireEmailVerified } from "@/lib/auth";
 import {
   successResponse,
   errorResponse,
   unauthorizedResponse,
+  emailVerificationRequiredResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
 import { z } from "zod";
 import { validateWithSchema, validationErrorResponse } from "@/lib/validations";
+import { sanitizeGameUid, sanitizeText } from "@/lib/sanitize";
 
 // Schema for joining a team
 const joinTeamSchema = z.object({
@@ -30,13 +32,21 @@ const joinTeamSchema = z.object({
 /**
  * POST /api/teams/join
  * Join a team using invite code
+ * Requires email verification
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = getUserFromRequest(request);
+    // Check authentication and email verification
+    const { user, verified, error } = requireEmailVerified(request);
 
     if (!user) {
       return unauthorizedResponse();
+    }
+
+    if (!verified) {
+      return emailVerificationRequiredResponse(
+        "Please verify your email address before joining a team"
+      );
     }
 
     const body = await request.json();
@@ -48,6 +58,10 @@ export async function POST(request: NextRequest) {
     }
     
     const { invite_code, game_uid, game_name } = validation.data;
+
+    // Sanitize user input to prevent XSS
+    const sanitizedGameUid = sanitizeGameUid(game_uid);
+    const sanitizedGameName = sanitizeText(game_name, 50);
 
     const result = await withTransaction(async (client) => {
       // Find team by invite code
@@ -81,7 +95,7 @@ export async function POST(request: NextRequest) {
       await client.query(
         `INSERT INTO team_members (team_id, user_id, role, game_uid, game_name)
          VALUES ($1, $2, 'member', $3, $4)`,
-        [team.id, user.id, game_uid, game_name]
+        [team.id, user.id, sanitizedGameUid, sanitizedGameName]
       );
 
       // Update team member count

@@ -48,6 +48,7 @@ export const gameIdSchema = z
 export const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, "Password is required"),
+  remember_me: z.boolean().optional().default(false),
 });
 
 export const registerSchema = z.object({

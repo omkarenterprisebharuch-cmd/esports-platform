@@ -3,7 +3,10 @@
  * - Rate limiting
  * - Profanity filtering
  * - Message validation
+ * - XSS sanitization
  */
+
+import { sanitizeChatMessage, sanitizeUsername } from "./sanitize";
 
 // Rate limiting configuration
 const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
@@ -159,35 +162,35 @@ export function validateMessage(message: string): ValidationResult {
     return { valid: false, error: "Message is required" };
   }
 
-  // Trim and check length
-  const trimmed = message.trim();
+  // Sanitize message (strip HTML, limit length) to prevent XSS
+  const sanitized = sanitizeChatMessage(message);
 
-  if (trimmed.length === 0) {
+  if (sanitized.length === 0) {
     return { valid: false, error: "Message cannot be empty" };
   }
 
-  if (trimmed.length > 500) {
+  if (sanitized.length > 500) {
     return { valid: false, error: "Message cannot exceed 500 characters" };
   }
 
   // Check for spam patterns (repeated characters)
-  if (/(.)\1{9,}/.test(trimmed)) {
+  if (/(.)\1{9,}/.test(sanitized)) {
     return { valid: false, error: "Message contains too many repeated characters" };
   }
 
   // Check for excessive caps (more than 80% uppercase, min 10 chars)
-  if (trimmed.length >= 10) {
-    const upperCount = (trimmed.match(/[A-Z]/g) || []).length;
-    const letterCount = (trimmed.match(/[a-zA-Z]/g) || []).length;
+  if (sanitized.length >= 10) {
+    const upperCount = (sanitized.match(/[A-Z]/g) || []).length;
+    const letterCount = (sanitized.match(/[a-zA-Z]/g) || []).length;
     if (letterCount > 0 && upperCount / letterCount > 0.8) {
       return { valid: false, error: "Please don't shout! Reduce caps." };
     }
   }
 
   // Filter profanity (replace, don't block)
-  const sanitized = filterProfanity(trimmed);
+  const filtered = filterProfanity(sanitized);
 
-  return { valid: true, sanitized };
+  return { valid: true, sanitized: filtered };
 }
 
 /**
@@ -216,14 +219,15 @@ export interface ChatMessageSocket {
 
 /**
  * Convert database message to socket format
+ * Sanitizes username to prevent XSS
  */
 export function dbMessageToSocket(msg: ChatMessageDB): ChatMessageSocket {
   return {
     id: String(msg.id),
     tournamentId: msg.tournament_id,
     userId: msg.user_id,
-    username: msg.username,
-    message: msg.message,
+    username: sanitizeUsername(msg.username) || msg.username,
+    message: msg.message, // Already sanitized before storage
     timestamp: msg.created_at,
   };
 }

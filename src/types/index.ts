@@ -16,6 +16,7 @@ export interface User {
   is_host: boolean;
   is_verified: boolean;
   is_active: boolean;
+  email_verified: boolean; // Whether email has been verified
   role: UserRole; // RBAC role
   auth_provider: "local" | "google" | "facebook" | "discord";
   auth_provider_id?: string;
