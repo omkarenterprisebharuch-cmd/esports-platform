@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS advertisements (
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    created_by INT REFERENCES users(id) ON DELETE SET NULL
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- ============================================
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS ad_impressions (
     placement_id VARCHAR(50) NOT NULL REFERENCES ad_placements(id) ON DELETE CASCADE,
     
     -- User Info (optional for anonymous tracking)
-    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     session_id VARCHAR(100), -- For frequency capping without login
     
     -- Context
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS ad_clicks (
     placement_id VARCHAR(50) NOT NULL REFERENCES ad_placements(id) ON DELETE CASCADE,
     
     -- User Info
-    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     session_id VARCHAR(100),
     
     -- Context
