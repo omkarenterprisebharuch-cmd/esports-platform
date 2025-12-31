@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import pool from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import {
@@ -8,6 +9,7 @@ import {
   unauthorizedResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
+import { invalidateTournamentCaches } from "@/lib/redis";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -201,6 +203,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       values
     );
 
+    // Invalidate tournament caches
+    invalidateTournamentCaches(id).catch(() => {});
+
+    // On-demand ISR revalidation for public tournament pages
+    try {
+      revalidatePath(`/t/${id}`);
+      revalidatePath("/leaderboard");
+    } catch {
+      // Revalidation is best-effort, don't fail the request
+    }
+
     return successResponse(
       { tournament: updateResult.rows[0] },
       "Tournament updated successfully"
@@ -268,6 +281,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Delete tournament (cascades to registrations, matches, etc.)
     await pool.query("DELETE FROM tournaments WHERE id = $1", [id]);
+
+    // Invalidate tournament caches
+    invalidateTournamentCaches(id).catch(() => {});
+
+    // On-demand ISR revalidation - remove stale tournament page
+    try {
+      revalidatePath(`/t/${id}`);
+      revalidatePath("/leaderboard");
+      revalidatePath("/dashboard");
+    } catch {
+      // Revalidation is best-effort, don't fail the request
+    }
 
     const message = tournament.is_template 
       ? "Scheduled template deleted successfully" 

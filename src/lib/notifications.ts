@@ -7,6 +7,12 @@
 import nodemailer from "nodemailer";
 import webpush from "web-push";
 import pool from "./db";
+import {
+  queueNotificationEmail,
+  queueTransactionalEmail,
+  sendImmediateEmail,
+  type EmailPriority,
+} from "./email-queue";
 
 // Notification types
 export type NotificationType = 
@@ -176,23 +182,34 @@ export async function sendPushNotification(
 }
 
 /**
- * Send a basic email
+ * Send a basic email (queued for efficient delivery)
+ * @param immediate - If true, sends immediately bypassing queue (use for OTPs)
  */
 export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  text?: string
+  text?: string,
+  options?: {
+    immediate?: boolean;
+    priority?: EmailPriority;
+    type?: string;
+  }
 ): Promise<void> {
-  const transporter = createTransporter();
-
-  await transporter.sendMail({
-    from: `"Esports Platform" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-    to,
-    subject,
-    html,
-    text: text || subject,
-  });
+  if (options?.immediate) {
+    // Send immediately for time-critical emails
+    await sendImmediateEmail(to, subject, html, text);
+  } else if (options?.priority === "high") {
+    // Queue as transactional (high priority)
+    queueTransactionalEmail(to, subject, html, text);
+  } else {
+    // Queue as notification (batched)
+    queueNotificationEmail(to, subject, html, {
+      text,
+      priority: options?.priority,
+      type: options?.type,
+    });
+  }
 }
 
 /**

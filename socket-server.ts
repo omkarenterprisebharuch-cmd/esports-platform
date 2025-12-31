@@ -1,4 +1,4 @@
-import { Server as SocketIOServer } from "socket.io";
+import { Server as SocketIOServer, Socket } from "socket.io";
 import { createServer } from "http";
 import jwt from "jsonwebtoken";
 import { Pool } from "pg";
@@ -9,6 +9,13 @@ import {
   clearTournamentRateLimits,
   ChatMessageSocket,
 } from "./src/lib/chat-utils";
+import {
+  EventBatcher,
+  BackpressureHandler,
+  TypingThrottler,
+  SlidingWindowRateLimiter,
+  THROTTLE_TIMES,
+} from "./src/lib/socket-throttle";
 
 // Load environment variables from .env.local
 dotenv.config({ path: ".env.local" });
@@ -47,10 +54,31 @@ interface TournamentRoom {
   registeredUsers: Set<string>;
   activeUsers: Set<string>; // Currently connected users
   endTime: Date;
+  // Typing throttler for this room
+  typingThrottler: TypingThrottler;
+  // Message batcher for this room
+  messageBatcher: EventBatcher<ChatMessageSocket>;
 }
 
 // In-memory tracking for rooms (messages now stored in DB)
 const tournamentRooms = new Map<string, TournamentRoom>();
+
+// Global backpressure handler for the server
+const serverBackpressure = new BackpressureHandler({
+  maxPending: 100, // Max 100 pending operations across all connections
+  onPressure: () => {
+    console.warn("⚠️ Server backpressure: high load detected");
+  },
+  onRelease: () => {
+    console.log("✅ Server backpressure released");
+  },
+});
+
+// Global event rate limiter
+const eventRateLimiter = new SlidingWindowRateLimiter(60000, 100); // 100 events per minute per user
+
+// Active user count throttling - batch updates
+const activeUserBroadcasts = new Map<string, ReturnType<typeof setTimeout>>();
 
 // Helper to get active user count for a room
 function getActiveUserCount(roomName: string): number {
@@ -58,25 +86,50 @@ function getActiveUserCount(roomName: string): number {
   return room ? room.size : 0;
 }
 
-// Broadcast active user count to room
+// Throttled broadcast of active user count to room (batches rapid join/leave)
+function broadcastActiveCountThrottled(roomName: string): void {
+  // Cancel existing scheduled broadcast
+  const existing = activeUserBroadcasts.get(roomName);
+  if (existing) {
+    clearTimeout(existing);
+  }
+
+  // Schedule new broadcast with delay to batch rapid changes
+  const timeout = setTimeout(() => {
+    activeUserBroadcasts.delete(roomName);
+    const count = getActiveUserCount(roomName);
+    io.to(roomName).emit("active-users", { count });
+  }, THROTTLE_TIMES.ACTIVE_USERS_UPDATE);
+
+  activeUserBroadcasts.set(roomName, timeout);
+}
+
+// Legacy function for compatibility
 function broadcastActiveCount(roomName: string): void {
-  const count = getActiveUserCount(roomName);
-  io.to(roomName).emit("active-users", { count });
+  broadcastActiveCountThrottled(roomName);
 }
 
 // Create HTTP server for Socket.io
 const httpServer = createServer((req, res) => {
-  // Health check endpoint
+  // Health check endpoint with additional metrics
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", rooms: tournamentRooms.size }));
+    res.end(JSON.stringify({ 
+      status: "ok", 
+      rooms: tournamentRooms.size,
+      backpressure: {
+        isUnderPressure: serverBackpressure.isUnderPressure,
+        pending: serverBackpressure.pending,
+      },
+      connections: io.engine?.clientsCount ?? 0,
+    }));
     return;
   }
   res.writeHead(404);
   res.end();
 });
 
-// Initialize Socket.io
+// Initialize Socket.io with performance options
 const io = new SocketIOServer(httpServer, {
   cors: {
     origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
@@ -106,7 +159,7 @@ io.use((socket, next) => {
   }
 });
 
-io.on("connection", (socket) => {
+io.on("connection", (socket: Socket) => {
   console.log(`✅ User connected: ${socket.data.user.username} (${socket.data.user.id})`);
 
   // Join tournament chat room
@@ -118,8 +171,20 @@ io.on("connection", (socket) => {
     const { tournamentId, registeredUsers, endTime } = data;
     const roomKey = String(tournamentId);
     const userId = String(socket.data.user.id);
+    const username = socket.data.user.username;
 
-    console.log(`📥 Join request: User ${socket.data.user.username} -> Tournament ${roomKey}`);
+    // Check global event rate limit
+    const rateLimitKey = `join:${userId}`;
+    const rateCheck = eventRateLimiter.check(rateLimitKey);
+    if (!rateCheck.allowed) {
+      socket.emit("error", { 
+        message: "Too many requests. Please wait a moment.",
+        retryAfter: Math.ceil(rateCheck.resetIn / 1000),
+      });
+      return;
+    }
+
+    console.log(`📥 Join request: User ${username} -> Tournament ${roomKey}`);
     console.log(`   Registered users: ${registeredUsers.length}`);
 
     // Verify user is registered for this tournament
@@ -143,16 +208,46 @@ io.on("connection", (socket) => {
 
     // Create room if it doesn't exist
     if (!tournamentRooms.has(roomKey)) {
-      tournamentRooms.set(roomKey, {
+      const roomName = `tournament-${roomKey}`;
+      
+      // Create typing throttler for this room
+      const typingThrottler = new TypingThrottler({
+        typingTimeout: 3000,
+        onTypingStart: (typingUserId: string) => {
+          const typingUser = Array.from(room?.activeUsers || []).find(u => u === typingUserId);
+          io.to(roomName).emit("user-typing", { 
+            userId: typingUserId,
+            username: typingUser || "Someone",
+          });
+        },
+        onTypingStop: (typingUserId: string) => {
+          io.to(roomName).emit("user-stopped-typing", { userId: typingUserId });
+        },
+      });
+
+      // Create message batcher for this room
+      const messageBatcher = new EventBatcher<ChatMessageSocket>(
+        (batch) => {
+          // Emit batched messages (for future use with high-volume scenarios)
+          io.to(roomName).emit("messages-batch", { messages: batch });
+        },
+        { maxBatchSize: 10, maxWaitMs: THROTTLE_TIMES.BATCH_MESSAGES }
+      );
+
+      const room: TournamentRoom = {
         tournamentId,
         registeredUsers: new Set(registeredUserStrings),
         activeUsers: new Set(),
         endTime: tournamentEndTime,
-      });
+        typingThrottler,
+        messageBatcher,
+      };
+      
+      tournamentRooms.set(roomKey, room);
       console.log(`🆕 Created new room for tournament ${roomKey}`);
     } else {
-      const room = tournamentRooms.get(roomKey)!;
-      registeredUserStrings.forEach((id) => room.registeredUsers.add(id));
+      const existingRoom = tournamentRooms.get(roomKey)!;
+      registeredUserStrings.forEach((id) => existingRoom.registeredUsers.add(id));
     }
 
     // Track active user
@@ -216,52 +311,89 @@ io.on("connection", (socket) => {
     console.log(`👋 ${socket.data.user.username} left ${roomName}`);
   });
 
+  // Handle typing indicator (throttled on client, validated on server)
+  socket.on("typing", (data: { tournamentId: number | string }) => {
+    const roomKey = String(data.tournamentId);
+    const userId = String(socket.data.user.id);
+
+    const room = tournamentRooms.get(roomKey);
+    if (!room || !room.registeredUsers.has(userId)) {
+      return; // Silently ignore invalid typing events
+    }
+
+    // Use the room's typing throttler
+    room.typingThrottler.update(userId);
+  });
+
+  // Handle stopped typing
+  socket.on("stopped-typing", (data: { tournamentId: number | string }) => {
+    const roomKey = String(data.tournamentId);
+    const userId = String(socket.data.user.id);
+
+    const room = tournamentRooms.get(roomKey);
+    if (room) {
+      room.typingThrottler.stop(userId);
+    }
+  });
+
   // Send message to tournament chat
-  socket.on("send-message", async (data: { tournamentId: number | string; message: string }) => {
+  socket.on("send-message", async (data: { tournamentId: number | string; message: string }, ack?: () => void) => {
     const { tournamentId, message } = data;
     const roomKey = String(tournamentId);
     const userId = String(socket.data.user.id);
     const username = socket.data.user.username;
 
-    const room = tournamentRooms.get(roomKey);
-    if (!room) {
-      socket.emit("error", { message: "Chat room not found" });
-      return;
-    }
-
-    if (!room.registeredUsers.has(userId)) {
-      socket.emit("error", {
-        message: "You are not authorized to send messages in this chat",
+    // Check server backpressure
+    if (!serverBackpressure.acquire()) {
+      socket.emit("error", { 
+        message: "Server is busy. Please try again in a moment.",
+        code: "BACKPRESSURE",
       });
       return;
     }
 
-    if (new Date() > room.endTime) {
-      socket.emit("error", {
-        message: "Tournament has ended. Chat is no longer available.",
-      });
-      return;
-    }
-
-    // Rate limiting check
-    if (isRateLimited(tournamentId, userId)) {
-      socket.emit("error", {
-        message: "You're sending messages too fast. Please wait a moment.",
-      });
-      return;
-    }
-
-    // Validate and sanitize message
-    const validation = validateMessage(message);
-    if (!validation.valid) {
-      socket.emit("error", { message: validation.error });
-      return;
-    }
-
-    const sanitizedMessage = validation.sanitized!;
-
-    // Save message to database
     try {
+      const room = tournamentRooms.get(roomKey);
+      if (!room) {
+        socket.emit("error", { message: "Chat room not found" });
+        return;
+      }
+
+      // Stop typing indicator when message is sent
+      room.typingThrottler.stop(userId);
+
+      if (!room.registeredUsers.has(userId)) {
+        socket.emit("error", {
+          message: "You are not authorized to send messages in this chat",
+        });
+        return;
+      }
+
+      if (new Date() > room.endTime) {
+        socket.emit("error", {
+          message: "Tournament has ended. Chat is no longer available.",
+        });
+        return;
+      }
+
+      // Rate limiting check
+      if (isRateLimited(tournamentId, userId)) {
+        socket.emit("error", {
+          message: "You're sending messages too fast. Please wait a moment.",
+        });
+        return;
+      }
+
+      // Validate and sanitize message
+      const validation = validateMessage(message);
+      if (!validation.valid) {
+        socket.emit("error", { message: validation.error });
+        return;
+      }
+
+      const sanitizedMessage = validation.sanitized!;
+
+      // Save message to database
       const result = await pool.query(
         `INSERT INTO chat_messages (tournament_id, user_id, username, message)
          VALUES ($1, $2, $3, $4)
@@ -281,14 +413,30 @@ io.on("connection", (socket) => {
       const roomName = `tournament-${roomKey}`;
       io.to(roomName).emit("new-message", chatMessage);
 
+      // Send acknowledgement if callback provided
+      if (ack) {
+        ack();
+      }
+
       console.log(`💬 Message in ${roomName}: ${username}: ${sanitizedMessage.substring(0, 50)}...`);
     } catch (err) {
       console.error("Failed to save message:", err);
       socket.emit("error", { message: "Failed to send message. Please try again." });
+    } finally {
+      // Always release backpressure
+      serverBackpressure.release();
     }
   });
 
   socket.on("disconnect", () => {
+    const userId = String(socket.data.user.id);
+    
+    // Clean up typing indicators for all rooms
+    tournamentRooms.forEach((room) => {
+      room.typingThrottler.stop(userId);
+      room.activeUsers.delete(userId);
+    });
+    
     console.log(`❌ User disconnected: ${socket.data.user.username}`);
   });
 });
@@ -299,10 +447,23 @@ setInterval(() => {
   tournamentRooms.forEach((room, tournamentId) => {
     if (now > room.endTime) {
       console.log(`🧹 Cleaning up chat room for tournament ${tournamentId}`);
+      
+      // Clean up room resources
+      room.typingThrottler.clear();
+      room.messageBatcher.clear();
+      
+      // Clear scheduled active user broadcasts
+      const broadcastTimeout = activeUserBroadcasts.get(`tournament-${tournamentId}`);
+      if (broadcastTimeout) {
+        clearTimeout(broadcastTimeout);
+        activeUserBroadcasts.delete(`tournament-${tournamentId}`);
+      }
+      
       tournamentRooms.delete(tournamentId);
       
       // Clear rate limits for this tournament
       clearTournamentRateLimits(tournamentId);
+      eventRateLimiter.clearByPrefix(`join:${tournamentId}`);
       
       io.to(`tournament-${tournamentId}`).emit("chat-closed", {
         message: "Tournament has ended. Chat is now closed.",

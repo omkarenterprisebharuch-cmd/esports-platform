@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { PoolClient } from "pg";
 import pool, { withTransaction } from "@/lib/db";
 import { getUserFromHeader } from "@/lib/auth";
@@ -251,6 +252,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       ORDER BY l."position" ASC`,
       [id]
     );
+
+    // On-demand ISR revalidation for public pages with leaderboard data
+    try {
+      revalidatePath(`/t/${id}`);
+      revalidatePath("/leaderboard"); // Hall of fame
+    } catch {
+      // Revalidation is best-effort
+    }
 
     return successResponse(
       { leaderboard: leaderboardResult.rows },

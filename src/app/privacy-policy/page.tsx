@@ -1,6 +1,19 @@
-"use client";
-
 import Link from "next/link";
+import { Metadata } from "next";
+
+// Static page - no dynamic data needed
+export const dynamic = "force-static";
+export const revalidate = false; // Never revalidate - fully static
+
+export const metadata: Metadata = {
+  title: "Privacy Policy | Esports Platform",
+  description: "Learn how we collect, use, and protect your personal data on our esports tournament platform.",
+  openGraph: {
+    title: "Privacy Policy | Esports Platform",
+    description: "Learn how we collect, use, and protect your personal data.",
+    type: "website",
+  },
+};
 
 export default function PrivacyPolicyPage() {
   return (

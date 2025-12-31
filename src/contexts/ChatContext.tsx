@@ -32,7 +32,7 @@ interface ChatContextType {
   isChatClosed: boolean;
   hasMoreMessages: boolean;
   isLoadingMore: boolean;
-  connect: (token: string) => void;
+  connect: (token: string) => Promise<void>;
   disconnect: () => void;
   joinChat: (tournamentId: number | string, registeredUsers: (number | string)[], endTime: string) => void;
   leaveChat: (tournamentId: number | string) => void;
@@ -76,9 +76,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return trimmed;
   }, []);
 
-  const connect = useCallback((token: string) => {
+  const connect = useCallback(async (token: string) => {
     tokenRef.current = token;
-    const socket = initSocket(token);
+    const socket = await initSocket(token);
 
     socket.on("connect", () => {
       setIsConnected(true);

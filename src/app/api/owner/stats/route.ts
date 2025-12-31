@@ -6,10 +6,14 @@ import {
   forbiddenResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
+import { cache, TTL, CACHE_PREFIX } from "@/lib/redis";
+
+const OWNER_STATS_CACHE_KEY = `${CACHE_PREFIX.STATS}:owner:detailed`;
 
 /**
  * GET /api/owner/stats
  * Get platform statistics (Owner only)
+ * Cached for 5 minutes
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +21,12 @@ export async function GET(request: NextRequest) {
     const user = requireOwner(request);
     if (!user) {
       return forbiddenResponse("Owner access required");
+    }
+
+    // Check for cached stats
+    const cached = await cache.get<object>(OWNER_STATS_CACHE_KEY);
+    if (cached) {
+      return successResponse({ ...cached, cached: true });
     }
 
     // Get all stats in parallel
@@ -81,7 +91,7 @@ export async function GET(request: NextRequest) {
       `),
     ]);
 
-    return successResponse({
+    const stats = {
       users: {
         total: parseInt(usersStats.rows[0].total),
         newThisWeek: parseInt(usersStats.rows[0].new_this_week),
@@ -104,7 +114,12 @@ export async function GET(request: NextRequest) {
       },
       recentUsers: recentUsers.rows,
       roleDistribution: roleDistribution.rows,
-    });
+    };
+
+    // Cache the stats for 5 minutes
+    await cache.set(OWNER_STATS_CACHE_KEY, stats, TTL.MEDIUM);
+
+    return successResponse(stats);
   } catch (error) {
     console.error("Get owner stats error:", error);
     return serverErrorResponse(error);

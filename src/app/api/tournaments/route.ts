@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import pool from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import {
@@ -8,6 +9,7 @@ import {
   serverErrorResponse,
 } from "@/lib/api-response";
 import { sanitizeTournamentName, sanitizeDescription, sanitizeText, sanitizeUrl } from "@/lib/sanitize";
+import { cache, cacheKeys, invalidateTournamentCaches, TTL } from "@/lib/redis";
 
 /**
  * GET /api/tournaments
@@ -41,6 +43,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = (page - 1) * limit;
+    const templates = searchParams.get("templates");
 
     // Get user for hosted filter
     let userId: string | null = null;
@@ -50,6 +53,45 @@ export async function GET(request: NextRequest) {
         return unauthorizedResponse();
       }
       userId = user.id;
+    }
+
+    // Build cache key for non-user-specific requests
+    // User-specific requests (hosted=true) are not cached
+    const isCacheable = hosted !== "true" && !userId;
+    const cacheKey = isCacheable
+      ? cacheKeys.tournamentList({
+          status: status || undefined,
+          gameType: gameType || undefined,
+          page,
+          limit,
+          sort,
+        })
+      : null;
+
+    // Try cache first for public requests
+    if (cacheKey) {
+      const cached = await cache.get<{
+        tournaments: unknown[];
+        total: number;
+      }>(cacheKey);
+      
+      if (cached) {
+        return successResponse(
+          {
+            tournaments: cached.tournaments,
+            pagination: {
+              page,
+              limit,
+              total: cached.total,
+              pages: Math.ceil(cached.total / limit),
+            },
+            cached: true,
+          },
+          undefined,
+          200,
+          { maxAge: 30, staleWhileRevalidate: 60, isPrivate: false }
+        );
+      }
     }
 
     let query = `
@@ -92,7 +134,6 @@ export async function GET(request: NextRequest) {
     let paramIndex = 1;
 
     // Check if we want templates or regular tournaments
-    const templates = searchParams.get("templates");
     if (templates === "true") {
       query += ` AND t.is_template = TRUE`;
     } else {
@@ -200,8 +241,7 @@ export async function GET(request: NextRequest) {
     let countParamIndex = 1;
 
     // Apply same filters for count
-    const templates2 = searchParams.get("templates");
-    if (templates2 === "true") {
+    if (templates === "true") {
       countQuery += ` AND t.is_template = TRUE`;
     } else {
       countQuery += ` AND (t.is_template = FALSE OR t.is_template IS NULL)`;
@@ -267,6 +307,11 @@ export async function GET(request: NextRequest) {
 
     const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].count);
+
+    // Cache the result for public requests (5 minute TTL)
+    if (cacheKey) {
+      cache.set(cacheKey, { tournaments, total }, TTL.MEDIUM).catch(() => {});
+    }
 
     return successResponse(
       {
@@ -409,6 +454,19 @@ export async function POST(request: NextRequest) {
     const message = isTemplate 
       ? `Tournament template created! It will auto-publish daily at ${publish_time}`
       : "Tournament created successfully";
+
+    // Invalidate tournament list caches
+    invalidateTournamentCaches().catch(() => {});
+
+    // On-demand ISR revalidation for public pages
+    try {
+      revalidatePath("/dashboard");
+      revalidatePath("/leaderboard");
+      // New tournament page will be generated on first visit
+      revalidatePath(`/t/${result.rows[0].id}`);
+    } catch {
+      // Revalidation is best-effort
+    }
 
     return successResponse(
       { tournament: result.rows[0] },

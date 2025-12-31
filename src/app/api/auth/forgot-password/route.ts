@@ -18,6 +18,10 @@ import {
   validationErrorResponse 
 } from "@/lib/validations";
 
+// Serverless configuration - password reset is infrequent
+export const maxDuration = 10;
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/auth/forgot-password
  * Send OTP for password reset

@@ -12,6 +12,7 @@ import { z } from "zod";
 import { validateWithSchema, validationErrorResponse } from "@/lib/validations";
 import { sanitizeTeamName, sanitizeGameUid, sanitizeText } from "@/lib/sanitize";
 import { encryptGameUid, decryptTeamMemberGameUid } from "@/lib/encryption";
+import { invalidateDbCache } from "@/lib/db-cache";
 
 // Schema for creating a team
 const createTeamSchema = z.object({
@@ -153,6 +154,9 @@ export async function POST(request: NextRequest) {
 
       return team;
     });
+
+    // Invalidate team-related caches
+    await invalidateDbCache.team(result.id);
 
     return successResponse(
       {

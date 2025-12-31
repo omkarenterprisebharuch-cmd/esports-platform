@@ -1,6 +1,19 @@
-"use client";
-
 import Link from "next/link";
+import { Metadata } from "next";
+
+// Static page - no dynamic data needed
+export const dynamic = "force-static";
+export const revalidate = false; // Never revalidate - fully static
+
+export const metadata: Metadata = {
+  title: "Terms of Service | Esports Platform",
+  description: "Read our terms of service for participating in esports tournaments on our platform.",
+  openGraph: {
+    title: "Terms of Service | Esports Platform",
+    description: "Terms and conditions for using our esports tournament platform.",
+    type: "website",
+  },
+};
 
 export default function TermsOfServicePage() {
   return (

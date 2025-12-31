@@ -6,6 +6,7 @@ import Link from "next/link";
 import { TournamentWithHost, Team, TeamMemberWithUser } from "@/types";
 import { useRegistrationCache } from "@/hooks/useRegistrationCache";
 import { secureFetch } from "@/lib/api-client";
+import { InterstitialAd, AdPlacement } from "@/components/ads";
 
 interface TeamWithMembers extends Team {
   members?: TeamMemberWithUser[];
@@ -30,6 +31,7 @@ export default function RegisterTournamentPage() {
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showInterstitial, setShowInterstitial] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -160,9 +162,9 @@ export default function RegisterTournamentPage() {
         setSuccess(
           `Successfully registered! Your slot number is #${data.data.slot_number}`
         );
-        setTimeout(() => {
-          router.push("/my-registrations");
-        }, 2000);
+        
+        // Show interstitial ad before redirecting
+        setShowInterstitial(true);
       } else {
         setError(data.message);
       }
@@ -215,6 +217,12 @@ export default function RegisterTournamentPage() {
     );
   }
 
+  // Handle interstitial ad close - redirect after ad
+  const handleInterstitialClose = () => {
+    setShowInterstitial(false);
+    router.push("/my-registrations");
+  };
+
   if (!tournament) {
     return (
       <div className="text-center py-12">
@@ -260,9 +268,20 @@ export default function RegisterTournamentPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* Interstitial Ad after successful registration */}
+      <InterstitialAd
+        placementId="registration_interstitial"
+        isOpen={showInterstitial}
+        onClose={handleInterstitialClose}
+        skipDelay={5}
+      />
+
       <h1 className="text-2xl font-bold text-gray-900 mb-6">
         Register for Tournament
       </h1>
+
+      {/* Top Ad Placement */}
+      <AdPlacement placementId="registration_success" className="mb-6" />
 
       {/* Tournament Info */}
       <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">

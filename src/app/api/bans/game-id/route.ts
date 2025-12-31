@@ -13,6 +13,10 @@ import { sanitizeText } from "@/lib/sanitize";
 import { z } from "zod";
 import { isGameIdBanned } from "@/lib/ban-check";
 
+// Serverless configuration - ban management is infrequent
+export const maxDuration = 15;
+export const dynamic = "force-dynamic";
+
 // Validation schema for banning a game ID
 const banGameIdSchema = z.object({
   game_id: z.string().min(1).max(100),

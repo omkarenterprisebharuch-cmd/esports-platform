@@ -22,6 +22,10 @@ import {
   validationErrorResponse 
 } from "@/lib/validations";
 
+// Serverless configuration - password reset is infrequent
+export const maxDuration = 10;
+export const dynamic = "force-dynamic";
+
 // Schema for reset password (email + otp + newPassword)
 const resetPasswordWithOtpSchema = z.object({
   email: emailSchema,

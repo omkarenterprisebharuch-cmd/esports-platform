@@ -26,3 +26,11 @@ export {
   useApiError,
   type ApiErrorInfo 
 } from './ApiErrorDisplay';
+export {
+  OptimizedImage,
+  OptimizedAvatar,
+  OptimizedBanner,
+  getOptimizedUrl,
+  getBlurPlaceholderUrl,
+  getResponsiveSrcSet,
+} from './OptimizedImage';

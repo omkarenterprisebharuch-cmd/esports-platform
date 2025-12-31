@@ -2,6 +2,11 @@
   "name": "esports-platform-nextjs",
   "version": "1.0.0",
   "private": true,
+  "sideEffects": [
+    "*.css",
+    "*.scss",
+    "src/app/globals.css"
+  ],
   "scripts": {
     "dev": "tsx server.ts",
     "dev:next": "next dev",
@@ -14,10 +19,13 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.0.0",
+    "@vercel/analytics": "^1.6.1",
+    "@vercel/speed-insights": "^1.3.1",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.5.1",
     "dotenv": "^17.2.3",
     "idb": "^8.0.3",
+    "ioredis": "^5.8.2",
     "isomorphic-dompurify": "^2.35.0",
     "jsonwebtoken": "^9.0.2",
     "next": "^15.1.0",

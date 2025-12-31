@@ -17,6 +17,7 @@ import {
   getWaitlistStatus,
 } from "@/lib/waitlist";
 import { isGameIdBanned, getBanMessage, checkMultipleGameIds } from "@/lib/ban-check";
+import { invalidateDbCache } from "@/lib/db-cache";
 
 // Schema for tournament registration
 const registerTournamentSchema = z.object({
@@ -348,6 +349,9 @@ export async function POST(request: NextRequest) {
     const message = result.is_waitlisted
       ? `Added to waitlist at position ${result.waitlist_position}`
       : "Successfully registered for the tournament";
+
+    // Invalidate registration-related caches
+    await invalidateDbCache.registration(user.id, tournament_id);
 
     return successResponse(result, message, 201);
   } catch (error) {

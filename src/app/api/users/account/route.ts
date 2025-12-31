@@ -18,6 +18,10 @@ import {
 import pool from "@/lib/db";
 import { verifyPassword } from "@/lib/auth";
 
+// Serverless configuration - account operations are infrequent
+export const maxDuration = 30;
+export const dynamic = "force-dynamic";
+
 // Schema for deletion request
 const deletionRequestSchema = z.object({
   reason: z.string().max(500).optional(),

@@ -15,6 +15,7 @@ import {
   encryptInGameIds, 
   decryptUserPII 
 } from "@/lib/encryption";
+import { invalidateDbCache } from "@/lib/db-cache";
 
 // Schema for updating profile
 const updateProfileSchema = z.object({
@@ -189,6 +190,9 @@ export async function PUT(request: NextRequest) {
        RETURNING id, username, email, full_name, phone_number, in_game_ids, is_host, profile_picture_url as avatar_url`,
       values
     );
+
+    // Invalidate user cache
+    await invalidateDbCache.user(user.id);
 
     // Decrypt PII fields before returning to client
     const updatedUser = decryptUserPII(result.rows[0]);

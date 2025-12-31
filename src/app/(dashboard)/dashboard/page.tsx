@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { TournamentWithHost } from "@/types";
 import { useRegistrationCache } from "@/hooks/useRegistrationCache";
 import { secureFetch } from "@/lib/api-client";
+import { AdPlacement } from "@/components/ads";
 
 // Filter state interface
 interface FilterState {
@@ -241,6 +242,9 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {/* Top Banner Ad */}
+      <AdPlacement placementId="dashboard_top" className="mb-6" />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold text-gray-900">All Tournaments</h1>
 

@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
 
   reactStrictMode: true,
 
+  // Enable gzip compression for all responses
+  // Note: Brotli is handled by reverse proxy (Vercel/Nginx) for better performance
   compress: true,
 
   productionBrowserSourceMaps: false,
@@ -138,6 +140,17 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
+        // API responses - enable caching and compression hints
+        source: "/api/:path*",
+        headers: [
+          {
+            // Ensure API responses can be cached by CDN when appropriate
+            key: "Vary",
+            value: "Accept-Encoding, Authorization",
+          },
+        ],
+      },
+      {
         source: "/api/tournaments",
         headers: [
           {
@@ -147,11 +160,158 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/api/hall-of-fame",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=300, stale-while-revalidate=600",
+          },
+        ],
+      },
+      // ============================================
+      // CDN STATIC ASSET CACHING
+      // ============================================
+      {
+        // Next.js static assets (JS, CSS chunks) - immutable, cache forever
         source: "/_next/static/:path*",
         headers: [
           {
             key: "Cache-Control",
             value: "public, max-age=31536000, immutable",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        // Public static files (favicon, manifest, robots, etc.)
+        source: "/:file(favicon.ico|robots.txt|sitemap.xml|manifest.json)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=86400",
+          },
+        ],
+      },
+      {
+        // PWA icons and assets
+        source: "/icons/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=2592000",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=604800",
+          },
+        ],
+      },
+      {
+        // Font files - long cache with immutable
+        source: "/:path*.woff2",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+        ],
+      },
+      {
+        // Image assets in public folder
+        source: "/:path*.(png|jpg|jpeg|gif|webp|avif|svg|ico)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=2592000",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=604800",
+          },
+        ],
+      },
+      {
+        // Next.js optimized images
+        source: "/_next/image/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=86400",
+          },
+        ],
+      },
+      {
+        // Service worker - short cache to allow updates
+        source: "/sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, must-revalidate",
+          },
+          {
+            key: "Service-Worker-Allowed",
+            value: "/",
+          },
+        ],
+      },
+      {
+        // ISR pages - allow CDN caching with stale-while-revalidate
+        source: "/tournament/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=120, stale-while-revalidate=300",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=120, stale-while-revalidate=300",
+          },
+        ],
+      },
+      {
+        // Public leaderboard page
+        source: "/leaderboard",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=300, stale-while-revalidate=900",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=300, stale-while-revalidate=900",
+          },
+        ],
+      },
+      {
+        // Static pages (privacy, terms)
+        source: "/:path(privacy-policy|terms)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+          {
+            key: "CDN-Cache-Control",
+            value: "public, max-age=86400",
           },
         ],
       },

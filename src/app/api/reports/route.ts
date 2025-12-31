@@ -12,6 +12,10 @@ import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-
 import { sanitizeText } from "@/lib/sanitize";
 import { z } from "zod";
 
+// Serverless configuration - reports are moderately frequent
+export const maxDuration = 15;
+export const dynamic = "force-dynamic";
+
 // Validation schema for new report
 const createReportSchema = z.object({
   reported_user_id: z.number().optional(),

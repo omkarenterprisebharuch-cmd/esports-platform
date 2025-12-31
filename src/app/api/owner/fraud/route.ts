@@ -16,6 +16,10 @@ import {
 import { z } from "zod";
 import { validateWithSchema, validationErrorResponse, uuidSchema } from "@/lib/validations";
 
+// Serverless configuration - fraud review is infrequent
+export const maxDuration = 30;
+export const dynamic = "force-dynamic";
+
 // Schema for reviewing a flagged login
 const reviewSchema = z.object({
   login_id: uuidSchema,

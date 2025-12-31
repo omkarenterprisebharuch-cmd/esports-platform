@@ -1,6 +1,11 @@
 import nodemailer from "nodemailer";
+import {
+  sendImmediateEmail,
+  queueTransactionalEmail,
+  queueNotificationEmail,
+} from "./email-queue";
 
-// Create reusable transporter
+// Create reusable transporter (for OTP emails that must be immediate)
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -195,8 +200,6 @@ export async function sendNewDeviceLoginEmail(
     loginTime: Date;
   }
 ): Promise<void> {
-  const transporter = createTransporter();
-  
   const formattedTime = deviceInfo.loginTime.toLocaleString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -300,7 +303,8 @@ export async function sendNewDeviceLoginEmail(
     text: `Esports Platform - New Device Login Alert\n\nHello ${username},\n\nWe detected a login to your account from a new device.\n\nDevice: ${deviceInfo.deviceName}\nBrowser: ${deviceInfo.browser}\nOperating System: ${deviceInfo.os}\nIP Address: ${deviceInfo.ipAddress}\nTime: ${formattedTime}\n\nIf this was you, you can safely ignore this email.\n\nIf you didn't log in from this device, please change your password immediately and review your active sessions.`,
   };
 
-  await transporter.sendMail(mailOptions);
+  // Queue as high priority transactional email (security-related)
+  queueTransactionalEmail(email, mailOptions.subject, mailOptions.html, mailOptions.text);
 }
 
 /**
@@ -316,8 +320,6 @@ export async function sendSuspiciousLoginEmail(
     riskScore: number;
   }
 ): Promise<void> {
-  const transporter = createTransporter();
-  
   const formattedTime = loginInfo.loginTime.toLocaleString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -435,5 +437,6 @@ export async function sendSuspiciousLoginEmail(
     text: `Esports Platform - Suspicious Login Activity Detected\n\nHello ${username},\n\nWe detected unusual activity on your account that may indicate unauthorized access.\n\nRisk Level: ${riskLevel}\nIP Address: ${loginInfo.ipAddress}\nTime: ${formattedTime}\n\nWhy this was flagged:\n${loginInfo.reasons.map(r => `- ${r}`).join('\n')}\n\nIf this wasn't you, please:\n1. Change your password immediately\n2. Review and logout all active sessions\n3. Enable two-factor authentication if available`,
   };
 
-  await transporter.sendMail(mailOptions);
+  // Queue as high priority transactional email (security alert)
+  queueTransactionalEmail(email, mailOptions.subject, mailOptions.html, mailOptions.text);
 }
