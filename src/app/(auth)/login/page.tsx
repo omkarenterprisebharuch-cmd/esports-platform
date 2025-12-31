@@ -4,18 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader } from "@/components/ui/Loader";
+import { ApiErrorDisplay, type ApiErrorInfo } from "@/components/ui/ApiErrorDisplay";
 import { secureFetch, setCachedUser } from "@/lib/api-client";
 
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "", remember_me: false });
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ApiErrorInfo | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError("");
+    setError(null);
 
     try {
       const res = await secureFetch("/api/auth/login", {
@@ -27,7 +28,11 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Login failed");
+        setError({
+          message: data.message || "Login failed",
+          errorCode: data.errorCode,
+        });
+        return;
       }
 
       // Cache user data for UI (non-sensitive)
@@ -44,7 +49,10 @@ export default function LoginPage() {
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError({
+        message: err instanceof Error ? err.message : "Login failed",
+        errorCode: "SRV_9001",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -65,9 +73,11 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
-              {error}
-            </div>
+            <ApiErrorDisplay 
+              error={error} 
+              onDismiss={() => setError(null)}
+              className="mb-6"
+            />
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">

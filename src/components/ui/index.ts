@@ -19,3 +19,10 @@ export { Loader, LoaderProvider, useLoader, PageLoader, NavigationLoader } from 
 export { ErrorBoundary, withErrorBoundary } from './ErrorBoundary';
 export { default as ShareButtons, ShareButton } from './ShareButtons';
 export { default as ThemeToggle, ThemeSelector } from './ThemeToggle';
+export { 
+  ApiErrorDisplay, 
+  InlineError, 
+  ErrorToast, 
+  useApiError,
+  type ApiErrorInfo 
+} from './ApiErrorDisplay';

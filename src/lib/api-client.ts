@@ -147,12 +147,12 @@ export async function secureFetch(
 }
 
 /**
- * JSON API helper with automatic parsing
+ * JSON API helper with automatic parsing and error code handling
  */
 export async function api<T = unknown>(
   url: string,
   options: FetchOptions = {}
-): Promise<{ success: boolean; data?: T; message?: string }> {
+): Promise<{ success: boolean; data?: T; message?: string; errorCode?: string }> {
   try {
     const response = await secureFetch(url, options);
     const data = await response.json();

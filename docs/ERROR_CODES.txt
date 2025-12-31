@@ -1,0 +1,592 @@
+================================================================================
+                         ESPORTS PLATFORM - ERROR CODES REFERENCE
+================================================================================
+                            Version: 1.0
+                            Last Updated: 2025-01-XX
+================================================================================
+
+This document contains all error codes used in the esports platform.
+When users report an error code, use this reference to identify the issue.
+
+FORMAT: [ERROR_CODE] - User Message | Internal Description
+================================================================================
+
+
+--------------------------------------------------------------------------------
+                    AUTHENTICATION ERRORS (AUTH_1xxx)
+--------------------------------------------------------------------------------
+
+AUTH_1001 - "Please log in to continue"
+           Internal: No authentication token provided
+           Cause: User is not logged in or auth cookie is missing
+           Solution: Redirect to login page
+           HTTP: 401
+
+AUTH_1002 - "Your session has expired. Please log in again"
+           Internal: JWT token expired
+           Cause: User's session has expired (default: 1 hour)
+           Solution: Redirect to login, consider implementing refresh tokens
+           HTTP: 401
+
+AUTH_1003 - "Invalid credentials. Please try again"
+           Internal: Invalid email or password
+           Cause: User entered wrong email or password
+           Solution: Verify credentials, check if account exists
+           HTTP: 401
+
+AUTH_1004 - "Session invalid. Please log in again"
+           Internal: JWT token malformed or tampered
+           Cause: Token was modified or corrupted
+           Solution: Clear cookies and re-login
+           HTTP: 401
+
+AUTH_1005 - "Please verify your email to continue"
+           Internal: Email not verified
+           Cause: User has not verified their email
+           Solution: Resend verification email
+           HTTP: 403
+
+AUTH_1006 - "Refresh token invalid or expired"
+           Internal: Refresh token validation failed
+           Cause: Refresh token expired or revoked
+           Solution: Full re-login required
+           HTTP: 401
+
+AUTH_1007 - "Invalid or expired OTP"
+           Internal: OTP verification failed
+           Cause: OTP expired or incorrect
+           Solution: Request new OTP
+           HTTP: 400
+
+AUTH_1008 - "Password reset link has expired"
+           Internal: Password reset token expired
+           Cause: Reset link expired (default: 15 minutes)
+           Solution: Request new password reset
+           HTTP: 400
+
+AUTH_1009 - "Too many login attempts. Please try again later"
+           Internal: Login rate limit exceeded
+           Cause: Brute force protection triggered
+           Solution: Wait 15 minutes before retrying
+           HTTP: 429
+
+AUTH_1010 - "Your account has been suspended"
+           Internal: User account is deactivated
+           Cause: Admin suspended the account
+           Solution: Contact support
+           HTTP: 403
+
+
+--------------------------------------------------------------------------------
+                    AUTHORIZATION ERRORS (AUTH_12xx)
+--------------------------------------------------------------------------------
+
+AUTH_1201 - "You don't have permission to perform this action"
+           Internal: Insufficient permissions for this operation
+           Cause: User role lacks required permissions
+           Solution: Check user role/permissions
+           HTTP: 403
+
+AUTH_1202 - "Only tournament hosts can perform this action"
+           Internal: User is not a host
+           Cause: User role is not 'host' or 'admin'
+           Solution: User needs to become a host
+           HTTP: 403
+
+AUTH_1203 - "Only admins can perform this action"
+           Internal: User is not an admin
+           Cause: Admin-only feature accessed by non-admin
+           Solution: Requires admin privileges
+           HTTP: 403
+
+AUTH_1204 - "You can only modify your own resources"
+           Internal: User attempting to modify another user's resource
+           Cause: User trying to edit another user's profile/team/etc
+           Solution: Only allow own resource modification
+           HTTP: 403
+
+AUTH_1205 - "Invalid CSRF token"
+           Internal: CSRF token validation failed
+           Cause: CSRF protection triggered
+           Solution: Refresh page and try again
+           HTTP: 403
+
+
+--------------------------------------------------------------------------------
+                         USER ERRORS (USER_2xxx)
+--------------------------------------------------------------------------------
+
+USER_2001 - "User not found"
+           Internal: User ID does not exist in database
+           Cause: User was deleted or never existed
+           Solution: Verify user ID
+           HTTP: 404
+
+USER_2002 - "This email is already registered"
+           Internal: Duplicate email constraint violation
+           Cause: Email already exists in database
+           Solution: Use different email or login
+           HTTP: 409
+
+USER_2003 - "This username is already taken"
+           Internal: Duplicate username constraint violation
+           Cause: Username already exists
+           Solution: Choose different username
+           HTTP: 409
+
+USER_2004 - "Current password is incorrect"
+           Internal: Password change - current password mismatch
+           Cause: User entered wrong current password
+           Solution: Verify current password
+           HTTP: 400
+
+USER_2005 - "Profile update failed. Please try again"
+           Internal: Error updating user profile
+           Cause: Database update failed
+           Solution: Check database connection, retry
+           HTTP: 400
+
+USER_2006 - "Failed to upload profile picture"
+           Internal: Cloudinary upload failed
+           Cause: Image upload service error
+           Solution: Check Cloudinary credentials, file size
+           HTTP: 400
+
+
+--------------------------------------------------------------------------------
+                      TOURNAMENT ERRORS (TOUR_3xxx)
+--------------------------------------------------------------------------------
+
+TOUR_3001 - "Tournament not found"
+           Internal: Tournament ID does not exist
+           Cause: Tournament was deleted or ID is wrong
+           Solution: Verify tournament ID
+           HTTP: 404
+
+TOUR_3002 - "Tournament registration has not started yet"
+           Internal: Registration start date in future
+           Cause: User trying to register too early
+           Solution: Wait for registration to open
+           HTTP: 400
+
+TOUR_3003 - "Tournament registration has closed"
+           Internal: Registration end date passed
+           Cause: Registration deadline has passed
+           Solution: Cannot register, deadline passed
+           HTTP: 400
+
+TOUR_3004 - "Tournament is full"
+           Internal: Max teams reached for tournament
+           Cause: All slots taken
+           Solution: Join waitlist if available
+           HTTP: 400
+
+TOUR_3005 - "Tournament has already started"
+           Internal: Cannot modify - tournament in progress
+           Cause: Tournament start date has passed
+           Solution: Cannot modify ongoing tournament
+           HTTP: 400
+
+TOUR_3006 - "Tournament has ended"
+           Internal: Tournament end date passed
+           Cause: Tournament is completed
+           Solution: View results only
+           HTTP: 400
+
+TOUR_3007 - "Cannot delete tournament with registrations"
+           Internal: Tournament has active registrations
+           Cause: Tournament has registered teams
+           Solution: Cancel all registrations first
+           HTTP: 400
+
+TOUR_3008 - "Invalid tournament dates"
+           Internal: Start date must be before end date
+           Cause: Date validation failed
+           Solution: Fix date values
+           HTTP: 400
+
+TOUR_3009 - "You are not the host of this tournament"
+           Internal: User is not the tournament host
+           Cause: Non-host trying to manage tournament
+           Solution: Only host can manage
+           HTTP: 403
+
+TOUR_3010 - "Tournament name already exists"
+           Internal: Duplicate tournament name
+           Cause: Name collision
+           Solution: Use different name
+           HTTP: 400
+
+
+--------------------------------------------------------------------------------
+                     REGISTRATION ERRORS (REG_4xxx)
+--------------------------------------------------------------------------------
+
+REG_4001 - "You are already registered for this tournament"
+           Internal: Duplicate registration attempt
+           Cause: User already has a registration
+           Solution: View existing registration
+           HTTP: 400
+
+REG_4002 - "Registration not found"
+           Internal: Registration ID does not exist
+           Cause: Registration was cancelled or ID is wrong
+           Solution: Verify registration ID
+           HTTP: 404
+
+REG_4003 - "Cannot cancel registration after tournament starts"
+           Internal: Registration cancellation deadline passed
+           Cause: Tournament has started
+           Solution: Cannot cancel after start
+           HTTP: 400
+
+REG_4004 - "Your team is already registered for this tournament"
+           Internal: Team already registered
+           Cause: Team has existing registration
+           Solution: View existing registration
+           HTTP: 400
+
+REG_4005 - "Team does not have enough members for this tournament"
+           Internal: Team size below tournament minimum
+           Cause: Tournament requires more team members
+           Solution: Add more team members
+           HTTP: 400
+
+REG_4006 - "Only team captain can register the team"
+           Internal: Non-captain attempting team registration
+           Cause: Non-captain user trying to register team
+           Solution: Captain must register
+           HTTP: 403
+
+REG_4007 - "Registration fee payment required"
+           Internal: Entry fee not paid
+           Cause: Paid tournament requires fee
+           Solution: Pay entry fee
+           HTTP: 400
+
+REG_4008 - "Insufficient wallet balance"
+           Internal: Wallet balance less than entry fee
+           Cause: Not enough funds
+           Solution: Add funds to wallet
+           HTTP: 400
+
+REG_4009 - "You're on the waitlist for this tournament"
+           Internal: User is in waitlist, not registered
+           Cause: Tournament was full when registered
+           Solution: Wait for slot to open
+           HTTP: 400
+
+REG_4010 - "Check-in window is not open yet"
+           Internal: Check-in attempted before window opens
+           Cause: Too early to check in
+           Solution: Wait for check-in window
+           HTTP: 400
+
+REG_4011 - "Check-in window has closed"
+           Internal: Check-in attempted after window closes
+           Cause: Check-in deadline passed
+           Solution: Cannot check in, deadline passed
+           HTTP: 400
+
+REG_4012 - "You have already checked in"
+           Internal: Duplicate check-in attempt
+           Cause: Already checked in
+           Solution: Already checked in, no action needed
+           HTTP: 400
+
+
+--------------------------------------------------------------------------------
+                          TEAM ERRORS (TEAM_5xxx)
+--------------------------------------------------------------------------------
+
+TEAM_5001 - "Team not found"
+           Internal: Team ID does not exist
+           Cause: Team was deleted or ID is wrong
+           Solution: Verify team ID
+           HTTP: 404
+
+TEAM_5002 - "Team name already exists"
+           Internal: Duplicate team name constraint violation
+           Cause: Another team has this name
+           Solution: Choose different team name
+           HTTP: 409
+
+TEAM_5003 - "Team is full"
+           Internal: Max team members reached
+           Cause: Team at maximum capacity
+           Solution: Remove member first
+           HTTP: 400
+
+TEAM_5004 - "Invalid team invite code"
+           Internal: Invite code does not match any team
+           Cause: Code is wrong or expired
+           Solution: Get correct invite code
+           HTTP: 400
+
+TEAM_5005 - "You are already a member of this team"
+           Internal: User already in team
+           Cause: Duplicate join attempt
+           Solution: Already a member
+           HTTP: 400
+
+TEAM_5006 - "Only team captain can perform this action"
+           Internal: Non-captain action attempt
+           Cause: Non-captain trying captain-only action
+           Solution: Only captain can do this
+           HTTP: 403
+
+TEAM_5007 - "Captain cannot leave the team. Transfer ownership first"
+           Internal: Captain leave without ownership transfer
+           Cause: Captain trying to leave
+           Solution: Transfer captain role first
+           HTTP: 400
+
+TEAM_5008 - "Cannot delete team with active registrations"
+           Internal: Team has tournament registrations
+           Cause: Team is registered in tournaments
+           Solution: Cancel all registrations first
+           HTTP: 400
+
+TEAM_5009 - "Team member not found"
+           Internal: User is not a member of this team
+           Cause: User not in team roster
+           Solution: Verify membership
+           HTTP: 404
+
+
+--------------------------------------------------------------------------------
+                       PAYMENT/WALLET ERRORS (PAY_6xxx)
+--------------------------------------------------------------------------------
+
+PAY_6001 - "Insufficient balance"
+           Internal: Wallet balance insufficient for transaction
+           Cause: Not enough funds in wallet
+           Solution: Add funds
+           HTTP: 400
+
+PAY_6002 - "Invalid transaction amount"
+           Internal: Transaction amount is zero or negative
+           Cause: Invalid amount value
+           Solution: Enter valid positive amount
+           HTTP: 400
+
+PAY_6003 - "Payment processing failed"
+           Internal: Payment gateway error
+           Cause: Gateway rejection or timeout
+           Solution: Retry or use different method
+           HTTP: 400
+
+PAY_6004 - "Refund failed. Please contact support"
+           Internal: Refund transaction failed
+           Cause: Refund processing error
+           Solution: Contact support for manual refund
+           HTTP: 400
+
+
+--------------------------------------------------------------------------------
+                       VALIDATION ERRORS (VAL_7xxx)
+--------------------------------------------------------------------------------
+
+VAL_7001 - "Please fill in all required fields"
+           Internal: Required field missing
+           Cause: Form submission with empty required fields
+           Solution: Fill all required fields
+           HTTP: 400
+
+VAL_7002 - "Invalid email format"
+           Internal: Email validation failed
+           Cause: Email doesn't match pattern
+           Solution: Enter valid email
+           HTTP: 400
+
+VAL_7003 - "Password must be at least 8 characters"
+           Internal: Password too short
+           Cause: Password less than 8 chars
+           Solution: Use longer password
+           HTTP: 400
+
+VAL_7004 - "Invalid date format"
+           Internal: Date parsing failed
+           Cause: Invalid date string
+           Solution: Use correct date format
+           HTTP: 400
+
+VAL_7005 - "File size too large"
+           Internal: Upload exceeds max file size
+           Cause: File larger than 5MB (default)
+           Solution: Compress or use smaller file
+           HTTP: 400
+
+VAL_7006 - "Invalid file type"
+           Internal: File type not allowed
+           Cause: Unsupported file extension
+           Solution: Use allowed file types (jpg, png, webp)
+           HTTP: 400
+
+VAL_7007 - "Username must be 3-20 characters"
+           Internal: Username length validation failed
+           Cause: Username too short or long
+           Solution: Use 3-20 character username
+           HTTP: 400
+
+VAL_7008 - "Input contains invalid characters"
+           Internal: Sanitization/XSS protection triggered
+           Cause: Potentially malicious input detected
+           Solution: Remove special characters
+           HTTP: 400
+
+VAL_7009 - "Request too large"
+           Internal: Request body exceeds limit
+           Cause: Payload too large (>1MB default)
+           Solution: Reduce request size
+           HTTP: 413
+
+
+--------------------------------------------------------------------------------
+                        DATABASE ERRORS (DB_8xxx)
+--------------------------------------------------------------------------------
+
+DB_8001 - "Unable to save data. Please try again"
+           Internal: Database insert failed
+           Cause: Insert query error
+           Solution: Check database connection, retry
+           HTTP: 500
+
+DB_8002 - "Unable to update data. Please try again"
+           Internal: Database update failed
+           Cause: Update query error
+           Solution: Check database connection, retry
+           HTTP: 500
+
+DB_8003 - "Unable to delete data. Please try again"
+           Internal: Database delete failed
+           Cause: Delete query error
+           Solution: Check constraints, retry
+           HTTP: 500
+
+DB_8004 - "Service temporarily unavailable"
+           Internal: Database connection failed
+           Cause: PostgreSQL connection error (08006)
+           Solution: Check database server status
+           HTTP: 500
+
+DB_8005 - "Operation timed out. Please try again"
+           Internal: Database query timeout (57014)
+           Cause: Query took too long
+           Solution: Optimize query, check database load
+           HTTP: 500
+
+DB_8006 - "Data conflict. Please refresh and try again"
+           Internal: Unique constraint violation (23505)
+           Cause: Duplicate value for unique column
+           Solution: Use different value
+           HTTP: 409
+
+
+--------------------------------------------------------------------------------
+                         SERVER ERRORS (SRV_9xxx)
+--------------------------------------------------------------------------------
+
+SRV_9001 - "Something went wrong. Please try again later"
+           Internal: Unhandled server error
+           Cause: Unknown/unexpected error
+           Solution: Check server logs for stack trace
+           HTTP: 500
+
+SRV_9002 - "Service temporarily unavailable"
+           Internal: Service dependency down
+           Cause: External service not responding
+           Solution: Check dependent services
+           HTTP: 503
+
+SRV_9003 - "Too many requests. Please slow down"
+           Internal: Rate limit exceeded
+           Cause: User sending too many requests
+           Solution: Wait and retry slowly
+           HTTP: 429
+
+SRV_9004 - "Email delivery failed. Please try again"
+           Internal: SMTP/Email service error
+           Cause: Nodemailer/SMTP failure
+           Solution: Check email configuration
+           HTTP: 500
+
+SRV_9005 - "File upload failed. Please try again"
+           Internal: Cloudinary/Storage service error
+           Cause: Upload service down or misconfigured
+           Solution: Check Cloudinary credentials
+           HTTP: 500
+
+SRV_9006 - "Notification delivery failed"
+           Internal: Push notification service error
+           Cause: Web push service failed
+           Solution: Check VAPID keys, subscription
+           HTTP: 500
+
+
+--------------------------------------------------------------------------------
+                           CHAT ERRORS (CHAT_10xx)
+--------------------------------------------------------------------------------
+
+CHAT_1001 - "Message cannot be empty"
+           Internal: Empty chat message
+           Cause: User sent empty message
+           Solution: Type a message
+           HTTP: 400
+
+CHAT_1002 - "Message too long"
+           Internal: Chat message exceeds max length (500 chars)
+           Cause: Message over limit
+           Solution: Shorten message
+           HTTP: 400
+
+CHAT_1003 - "You must be registered to chat in this tournament"
+           Internal: User not registered for tournament chat
+           Cause: Non-participant trying to chat
+           Solution: Register for tournament first
+           HTTP: 403
+
+CHAT_1004 - "You're sending messages too fast"
+           Internal: Chat rate limit exceeded
+           Cause: Spam protection triggered
+           Solution: Wait a few seconds
+           HTTP: 429
+
+
+================================================================================
+                              DEBUGGING TIPS
+================================================================================
+
+1. When a user reports an error, ask for the ERROR CODE displayed on screen
+
+2. Search this file for the code (e.g., AUTH_1002)
+
+3. Check the "Internal" description for technical details
+
+4. Check server logs for stack traces using:
+   grep "AUTH_1002" /path/to/logs/*.log
+
+5. Common patterns:
+   - 4xx errors: User/client issue (bad input, auth, permissions)
+   - 5xx errors: Server issue (database, services, code bugs)
+   - Rate limit (429): User sending too many requests
+   - 401: Authentication issue
+   - 403: Authorization issue (logged in but not permitted)
+
+================================================================================
+                              VERSION HISTORY
+================================================================================
+
+v1.0 - Initial error codes system
+     - Authentication errors (AUTH_1001-1010, 1201-1205)
+     - User errors (USER_2001-2006)
+     - Tournament errors (TOUR_3001-3010)
+     - Registration errors (REG_4001-4012)
+     - Team errors (TEAM_5001-5009)
+     - Payment errors (PAY_6001-6004)
+     - Validation errors (VAL_7001-7009)
+     - Database errors (DB_8001-8006)
+     - Server errors (SRV_9001-9006)
+     - Chat errors (CHAT_1001-1004)
+
+================================================================================

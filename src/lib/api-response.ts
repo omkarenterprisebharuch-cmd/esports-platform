@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { 
+  ERROR_CODES, 
+  getErrorInfo, 
+  logError, 
+  getErrorCodeFromError,
+  type ErrorCodeInfo 
+} from "./error-codes";
 
 // ============ Type Definitions ============
 
@@ -8,6 +15,7 @@ export interface ApiResponse<T = unknown> {
   message?: string;
   data?: T;
   error?: string;
+  errorCode?: string;  // New: Display error code to users
   errors?: { field: string; message: string }[];
 }
 
@@ -61,17 +69,36 @@ export function successResponse<T>(
 }
 
 /**
- * Error response helper
+ * Error response helper with error code support
  */
 export function errorResponse(
-  message: string,
+  messageOrCode: string,
   status: number = 400,
   error?: string
 ): NextResponse<ApiResponse> {
+  // Check if it's an error code
+  const errorInfo = ERROR_CODES[messageOrCode];
+  
+  if (errorInfo) {
+    // Log internally with full details
+    logError(messageOrCode);
+    
+    return NextResponse.json(
+      {
+        success: false,
+        message: errorInfo.userMessage,
+        errorCode: errorInfo.code,
+        error: errorInfo.category.toUpperCase() + "_ERROR",
+      },
+      { status: errorInfo.httpStatus }
+    );
+  }
+  
+  // Legacy: plain message string
   return NextResponse.json(
     {
       success: false,
-      message,
+      message: messageOrCode,
       error,
     },
     { status }
@@ -79,21 +106,29 @@ export function errorResponse(
 }
 
 /**
- * Unauthorized response (401)
+ * Unauthorized response (401) - with error code support
  */
 export function unauthorizedResponse(
-  message: string = "Unauthorized"
+  codeOrMessage: string = "AUTH_1001"
 ): NextResponse<ApiResponse> {
-  return errorResponse(message, 401);
+  // If it's an error code, use the error codes system
+  if (ERROR_CODES[codeOrMessage]) {
+    return errorResponse(codeOrMessage);
+  }
+  // Legacy: plain message
+  return errorResponse(codeOrMessage, 401);
 }
 
 /**
- * Forbidden response (403) - Authenticated but not authorized
+ * Forbidden response (403) - with error code support
  */
 export function forbiddenResponse(
-  message: string = "Forbidden"
+  codeOrMessage: string = "AUTH_1201"
 ): NextResponse<ApiResponse> {
-  return errorResponse(message, 403);
+  if (ERROR_CODES[codeOrMessage]) {
+    return errorResponse(codeOrMessage);
+  }
+  return errorResponse(codeOrMessage, 403);
 }
 
 /**
@@ -103,34 +138,30 @@ export function forbiddenResponse(
 export function emailVerificationRequiredResponse(
   message: string = "Please verify your email address to perform this action"
 ): NextResponse<ApiResponse> {
-  return NextResponse.json(
-    {
-      success: false,
-      message,
-      error: "EMAIL_VERIFICATION_REQUIRED",
-    },
-    { status: 403 }
-  );
+  return errorResponse("AUTH_1005");
 }
 
 /**
- * Not found response
+ * Not found response - with error code support
  */
 export function notFoundResponse(
-  message: string = "Not found"
+  codeOrMessage: string = "Not found"
 ): NextResponse<ApiResponse> {
-  return errorResponse(message, 404);
+  if (ERROR_CODES[codeOrMessage]) {
+    return errorResponse(codeOrMessage);
+  }
+  return errorResponse(codeOrMessage, 404);
 }
 
 /**
- * Server error response
+ * Server error response - with error code support
  */
 export function serverErrorResponse(
   error: unknown
 ): NextResponse<ApiResponse> {
-  console.error("Server error:", error);
-  const message = error instanceof Error ? error.message : "Internal server error";
-  return errorResponse(message, 500);
+  const errorCode = getErrorCodeFromError(error);
+  logError(errorCode, error);
+  return errorResponse(errorCode);
 }
 
 // ============ Centralized Error Handler ============
@@ -151,7 +182,24 @@ interface ApiError extends Error {
 }
 
 /**
- * Create a typed API error
+ * Create a typed API error with error code
+ */
+export function createCodedError(
+  errorCode: string,
+  context?: Record<string, unknown>
+): Error & { errorCode: string } {
+  const errorInfo = getErrorInfo(errorCode);
+  const error = new Error(errorInfo.internalMessage) as Error & { errorCode: string };
+  error.errorCode = errorCode;
+  
+  // Log immediately when error is created
+  logError(errorCode, undefined, context);
+  
+  return error;
+}
+
+/**
+ * Create a typed API error (legacy support)
  */
 export function createApiError(
   type: ApiErrorType,
@@ -177,35 +225,56 @@ export function createApiError(
 
 /**
  * Centralized error handler for API routes
- * Converts various error types to consistent API responses
+ * Converts various error types to consistent API responses with error codes
  */
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
-  // Log all errors for debugging
-  console.error("[API Error]:", error);
-
   // Handle Zod validation errors
   if (error instanceof ZodError) {
     const errors = error.issues.map((issue) => ({
       field: issue.path.join("."),
       message: issue.message,
     }));
+    
+    logError("VAL_7001", error, { validationErrors: errors });
+    
     return NextResponse.json(
       {
         success: false as const,
         message: errors[0]?.message || "Validation failed",
+        errorCode: "VAL_7001",
         errors,
       },
       { status: 400 }
     );
   }
 
-  // Handle typed API errors
+  // Handle typed API errors (with error codes)
+  if (error instanceof Error && "errorCode" in error) {
+    const apiError = error as Error & { errorCode: string };
+    const errorInfo = getErrorInfo(apiError.errorCode);
+    logError(apiError.errorCode, error);
+    
+    return NextResponse.json(
+      {
+        success: false as const,
+        message: errorInfo.userMessage,
+        errorCode: errorInfo.code,
+      },
+      { status: errorInfo.httpStatus }
+    );
+  }
+
+  // Handle legacy typed API errors
   if (error instanceof Error && "type" in error && "statusCode" in error) {
     const apiError = error as ApiError;
+    const errorCode = getErrorCodeFromError(error);
+    logError(errorCode, error);
+    
     return NextResponse.json(
       {
         success: false as const,
         message: apiError.message,
+        errorCode,
         error: apiError.type,
       },
       { status: apiError.statusCode }
@@ -219,11 +288,13 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
     // Unique constraint violation
     if (pgError.code === "23505") {
       const field = pgError.constraint?.replace(/_key$|_unique$/, "") || "field";
+      logError("DB_8006", error, { constraint: pgError.constraint, field });
+      
       return NextResponse.json(
         {
           success: false as const,
           message: `A record with this ${field} already exists`,
-          error: "CONFLICT",
+          errorCode: "DB_8006",
         },
         { status: 409 }
       );
@@ -231,40 +302,72 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
     
     // Foreign key violation
     if (pgError.code === "23503") {
+      logError("DB_8001", error, { constraint: pgError.constraint });
+      
       return NextResponse.json(
         {
           success: false as const,
           message: "Referenced record does not exist",
-          error: "NOT_FOUND",
+          errorCode: "DB_8001",
         },
         { status: 400 }
+      );
+    }
+    
+    // Connection error
+    if (pgError.code === "08006") {
+      logError("DB_8004", error);
+      const info = getErrorInfo("DB_8004");
+      return NextResponse.json(
+        {
+          success: false as const,
+          message: info.userMessage,
+          errorCode: "DB_8004",
+        },
+        { status: info.httpStatus }
+      );
+    }
+    
+    // Query timeout
+    if (pgError.code === "57014") {
+      logError("DB_8005", error);
+      const info = getErrorInfo("DB_8005");
+      return NextResponse.json(
+        {
+          success: false as const,
+          message: info.userMessage,
+          errorCode: "DB_8005",
+        },
+        { status: info.httpStatus }
       );
     }
   }
 
   // Handle standard Error objects
   if (error instanceof Error) {
-    // Don't expose internal error messages in production
-    const message = process.env.NODE_ENV === "production" 
-      ? "An unexpected error occurred" 
-      : error.message;
+    const errorCode = getErrorCodeFromError(error);
+    logError(errorCode, error);
+    const errorInfo = getErrorInfo(errorCode);
     
     return NextResponse.json(
       {
         success: false as const,
-        message,
-        error: "SERVER_ERROR",
+        message: errorInfo.userMessage,
+        errorCode: errorInfo.code,
       },
-      { status: 500 }
+      { status: errorInfo.httpStatus }
     );
   }
 
   // Handle unknown errors
+  logError("SRV_9001", error);
+  const defaultInfo = getErrorInfo("SRV_9001");
+  
   return NextResponse.json(
     {
       success: false as const,
-      message: "An unexpected error occurred",
-      error: "SERVER_ERROR",
+      message: defaultInfo.userMessage,
+      errorCode: "SRV_9001",
     },
     { status: 500 }
   );

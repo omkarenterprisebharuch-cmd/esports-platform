@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         flagged: true,
         flagReason: velocityCheck.reason,
       });
-      return errorResponse(velocityCheck.reason || "Too many login attempts", 429);
+      return errorResponse("AUTH_1009"); // Too many login attempts
     }
 
     // Find user by email (including role and email_verified)
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         status: 'failed',
         failureReason: 'User not found',
       });
-      return errorResponse("Invalid credentials", 401);
+      return errorResponse("AUTH_1003"); // Invalid credentials
     }
 
     const user = result.rows[0];
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         status: 'failed',
         failureReason: 'Invalid password',
       });
-      return errorResponse("Invalid credentials", 401);
+      return errorResponse("AUTH_1003"); // Invalid credentials
     }
 
     // Perform comprehensive fraud check
