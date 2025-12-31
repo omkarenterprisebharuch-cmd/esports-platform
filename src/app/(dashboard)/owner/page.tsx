@@ -239,6 +239,20 @@ export default function OwnerPortal() {
                 {tab.label}
               </button>
             ))}
+            {/* Ads Management - External Link */}
+            <button
+              onClick={() => router.push("/owner/ads")}
+              className="px-4 py-3 text-sm font-medium text-gray-400 hover:text-white transition"
+            >
+              📢 Ads Management
+            </button>
+            {/* Monitoring - External Link */}
+            <button
+              onClick={() => router.push("/owner/monitoring")}
+              className="px-4 py-3 text-sm font-medium text-gray-400 hover:text-white transition"
+            >
+              🔍 Monitoring
+            </button>
           </nav>
         </div>
       </div>
