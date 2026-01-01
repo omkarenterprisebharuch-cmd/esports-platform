@@ -431,6 +431,62 @@ export const ERROR_CODES: Record<string, ErrorCodeInfo> = {
     internalMessage: "Refund transaction failed",
     category: "Payment",
   },
+  PAY_6005: {
+    code: "PAY_6005",
+    httpStatus: 404,
+    userMessage: "Deposit request not found",
+    internalMessage: "Deposit request does not exist",
+    category: "Payment",
+  },
+  PAY_6006: {
+    code: "PAY_6006",
+    httpStatus: 400,
+    userMessage: "Deposit request already processed",
+    internalMessage: "Cannot modify processed deposit request",
+    category: "Payment",
+  },
+  PAY_6007: {
+    code: "PAY_6007",
+    httpStatus: 403,
+    userMessage: "You cannot approve your own request",
+    internalMessage: "Self-approval not allowed",
+    category: "Payment",
+  },
+  PAY_6008: {
+    code: "PAY_6008",
+    httpStatus: 400,
+    userMessage: "Cannot deposit to this user",
+    internalMessage: "Target user is not valid for deposit",
+    category: "Payment",
+  },
+  PAY_6009: {
+    code: "PAY_6009",
+    httpStatus: 400,
+    userMessage: "User not found",
+    internalMessage: "Target user for deposit not found",
+    category: "Payment",
+  },
+  PAY_6010: {
+    code: "PAY_6010",
+    httpStatus: 400,
+    userMessage: "Maximum deposit amount exceeded",
+    internalMessage: "Deposit amount exceeds maximum limit",
+    category: "Payment",
+  },
+  PAY_6011: {
+    code: "PAY_6011",
+    httpStatus: 400,
+    userMessage: "Minimum deposit amount is ₹10",
+    internalMessage: "Deposit amount below minimum limit",
+    category: "Payment",
+  },
+  PAY_6012: {
+    code: "PAY_6012",
+    httpStatus: 400,
+    userMessage: "You have too many pending requests",
+    internalMessage: "Maximum pending requests limit reached",
+    category: "Payment",
+  },
 
   // ============ VALIDATION ERRORS (7xxx) ============
   VAL_7001: {

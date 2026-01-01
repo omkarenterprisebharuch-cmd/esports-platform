@@ -156,6 +156,18 @@ export async function PUT(request: NextRequest) {
     }
 
     if (phone_number !== undefined) {
+      // Check if phone number is taken by another user (only if not empty)
+      if (phone_number && phone_number.trim() !== "") {
+        // Encrypt the phone number to compare with stored encrypted values
+        const encryptedPhoneToCheck = encryptPhoneNumber(phone_number);
+        const existingPhone = await pool.query(
+          "SELECT id FROM users WHERE phone_number = $1 AND id != $2",
+          [encryptedPhoneToCheck, user.id]
+        );
+        if (existingPhone.rows.length > 0) {
+          return errorResponse("Phone number is already in use by another account");
+        }
+      }
       // Encrypt phone number before storing
       const encryptedPhone = encryptPhoneNumber(phone_number);
       updates.push(`phone_number = $${paramIndex}`);
@@ -164,6 +176,22 @@ export async function PUT(request: NextRequest) {
     }
 
     if (sanitizedInGameIds !== undefined) {
+      // Check if any in-game ID is already in use by another user
+      if (sanitizedInGameIds && Object.keys(sanitizedInGameIds).length > 0) {
+        for (const [gameKey, gameId] of Object.entries(sanitizedInGameIds)) {
+          if (gameId && gameId.trim() !== "") {
+            // Check if this specific game ID is used by another user
+            const existingGameId = await pool.query(
+              `SELECT id FROM users 
+               WHERE in_game_ids->>$1 = $2 AND id != $3`,
+              [gameKey, gameId, user.id]
+            );
+            if (existingGameId.rows.length > 0) {
+              return errorResponse(`The ${gameKey} ID "${gameId}" is already in use by another player`);
+            }
+          }
+        }
+      }
       // Encrypt in-game IDs before storing
       const encryptedGameIds = encryptInGameIds(sanitizedInGameIds);
       updates.push(`in_game_ids = $${paramIndex}`);

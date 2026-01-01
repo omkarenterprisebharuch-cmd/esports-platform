@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { secureFetch } from "@/lib/api-client";
 
 interface User {
@@ -178,9 +179,20 @@ export default function ProfilePage() {
 
         {/* Wallet */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">💰 Wallet Balance</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">💰 Wallet Balance</h2>
+            <Link
+              href="/wallet"
+              className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              Manage Wallet →
+            </Link>
+          </div>
           <p className="text-3xl font-bold text-green-600">
             ₹{user?.wallet_balance || 0}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Used for tournament entry fees
           </p>
         </div>
 

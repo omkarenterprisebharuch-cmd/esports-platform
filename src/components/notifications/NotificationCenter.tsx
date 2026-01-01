@@ -172,27 +172,6 @@ export default function NotificationCenter() {
     }
   }, [isOpen, fetchNotifications, fetchPreferences, preferences]);
 
-  // Initial unread count fetch
-  useEffect(() => {
-    const fetchUnreadCount = async () => {
-      try {
-        const response = await api<{ unread_count: number }>(
-          "/api/notifications/history?limit=1"
-        );
-        if (response.success && response.data) {
-          setUnreadCount(response.data.unread_count);
-        }
-      } catch (error) {
-        console.error("Failed to fetch unread count:", error);
-      }
-    };
-
-    fetchUnreadCount();
-    // Poll for new notifications every minute
-    const interval = setInterval(fetchUnreadCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();

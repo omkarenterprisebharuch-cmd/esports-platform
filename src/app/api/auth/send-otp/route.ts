@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       [username]
     );
     if (existingUsername.rows.length > 0) {
-      return errorResponse("Username is already taken");
+      return errorResponse("Username is already in use by another account");
     }
 
     // Generate and store OTP

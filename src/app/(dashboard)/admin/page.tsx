@@ -552,7 +552,7 @@ export default function AdminPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-4 mb-6 flex-wrap">
         <button
           onClick={() => setActiveTab("tournaments")}
           className={`px-4 py-2 rounded-lg font-medium transition ${
@@ -578,6 +578,12 @@ export default function AdminPage() {
             </span>
           )}
         </button>
+        <Link
+          href="/admin/wallet"
+          className="px-4 py-2 rounded-lg font-medium transition bg-green-600 text-white hover:bg-green-700 flex items-center gap-2"
+        >
+          💰 Wallet
+        </Link>
         <Link
           href="/admin/create-tournament"
           className="px-4 py-2 rounded-lg font-medium transition bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 flex items-center gap-2"
