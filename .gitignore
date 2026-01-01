@@ -12,6 +12,14 @@ out/
 build
 .next
 
+# Sensitive/Private Code (hide from public repo)
+migrations/
+scripts/
+docs/
+src/lib/
+src/contexts/
+src/hooks/
+
 # Production
 dist
 
