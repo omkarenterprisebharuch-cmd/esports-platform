@@ -2,10 +2,34 @@
  * XSS Protection and Content Sanitization Utilities
  * 
  * Provides secure sanitization for user-generated content to prevent XSS attacks.
- * Uses DOMPurify for comprehensive HTML sanitization.
+ * Uses a lightweight, server-safe implementation without JSDOM dependencies.
  */
 
-import DOMPurify from "isomorphic-dompurify";
+// ============ HTML Entity Encoding/Decoding ============
+
+const htmlEntities: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#x27;",
+  "/": "&#x2F;",
+  "`": "&#x60;",
+  "=": "&#x3D;",
+};
+
+const reverseHtmlEntities: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#x27;": "'",
+  "&#39;": "'",
+  "&#x2F;": "/",
+  "&#x60;": "`",
+  "&#x3D;": "=",
+  "&nbsp;": " ",
+};
 
 // ============ Text Sanitization (for plain text fields) ============
 
@@ -16,18 +40,19 @@ import DOMPurify from "isomorphic-dompurify";
 export function escapeHtml(text: string): string {
   if (!text || typeof text !== "string") return "";
   
-  const htmlEscapes: Record<string, string> = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#x27;",
-    "/": "&#x2F;",
-    "`": "&#x60;",
-    "=": "&#x3D;",
-  };
+  return text.replace(/[&<>"'`=/]/g, (char) => htmlEntities[char] || char);
+}
 
-  return text.replace(/[&<>"'`=/]/g, (char) => htmlEscapes[char] || char);
+/**
+ * Decode HTML entities back to characters
+ */
+export function decodeHtmlEntities(text: string): string {
+  if (!text || typeof text !== "string") return "";
+  
+  return text.replace(
+    /&(amp|lt|gt|quot|#x27|#39|#x2F|#x60|#x3D|nbsp);/gi,
+    (match) => reverseHtmlEntities[match.toLowerCase()] || match
+  );
 }
 
 /**
@@ -37,11 +62,17 @@ export function escapeHtml(text: string): string {
 export function stripHtml(text: string): string {
   if (!text || typeof text !== "string") return "";
   
-  // First, use DOMPurify to decode HTML entities properly
-  // Then strip any remaining HTML
-  return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] })
-    .replace(/<[^>]*>/g, "")
-    .trim();
+  // Remove all HTML tags
+  let result = text.replace(/<[^>]*>/g, "");
+  
+  // Decode common HTML entities
+  result = decodeHtmlEntities(result);
+  
+  // Remove any script/style content that might have been left
+  result = result.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  result = result.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
+  
+  return result.trim();
 }
 
 /**
@@ -58,6 +89,26 @@ export function sanitizeText(text: string, maxLength = 500): string {
 
 // ============ Rich Text Sanitization (for descriptions, messages) ============
 
+// Tags allowed in rich text content
+const ALLOWED_TAGS = new Set([
+  "p", "br", "b", "i", "u", "strong", "em",
+  "ul", "ol", "li",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "a", "blockquote", "code", "pre",
+]);
+
+// Attributes allowed for specific tags
+const ALLOWED_ATTRS: Record<string, Set<string>> = {
+  a: new Set(["href", "target", "rel"]),
+};
+
+// Dangerous event handlers to remove
+const DANGEROUS_ATTRS = [
+  "onclick", "onerror", "onload", "onmouseover", "onfocus", "onblur",
+  "onmouseout", "onmouseenter", "onmouseleave", "onkeydown", "onkeyup",
+  "onkeypress", "onsubmit", "onchange", "oninput", "ondblclick",
+];
+
 /**
  * Sanitize HTML content allowing basic formatting
  * Use for rich text fields like tournament descriptions
@@ -65,21 +116,81 @@ export function sanitizeText(text: string, maxLength = 500): string {
 export function sanitizeRichText(html: string): string {
   if (!html || typeof html !== "string") return "";
   
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
-      "p", "br", "b", "i", "u", "strong", "em",
-      "ul", "ol", "li",
-      "h1", "h2", "h3", "h4", "h5", "h6",
-      "a", "blockquote", "code", "pre",
-    ],
-    ALLOWED_ATTR: ["href", "target", "rel"],
-    // Force all links to be safe
-    ALLOW_DATA_ATTR: false,
-    ADD_ATTR: ["target"], // Add target="_blank" capability
-    // Transform hooks for additional security
-    FORBID_TAGS: ["script", "style", "iframe", "form", "input", "button"],
-    FORBID_ATTR: ["onclick", "onerror", "onload", "onmouseover", "onfocus", "onblur"],
+  // Remove script and style tags completely (including content)
+  let result = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  result = result.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
+  
+  // Remove dangerous tags
+  const dangerousTags = ["iframe", "object", "embed", "form", "input", "button", "textarea", "select"];
+  for (const tag of dangerousTags) {
+    const regex = new RegExp(`<${tag}\\b[^>]*>.*?<\\/${tag}>|<${tag}\\b[^>]*\\/?>`, "gi");
+    result = result.replace(regex, "");
+  }
+  
+  // Remove event handlers from all tags
+  for (const attr of DANGEROUS_ATTRS) {
+    const regex = new RegExp(`\\s*${attr}\\s*=\\s*["'][^"']*["']`, "gi");
+    result = result.replace(regex, "");
+    // Also handle unquoted values
+    const unquotedRegex = new RegExp(`\\s*${attr}\\s*=\\s*[^\\s>]+`, "gi");
+    result = result.replace(unquotedRegex, "");
+  }
+  
+  // Remove javascript: and data: URLs from href attributes
+  result = result.replace(/href\s*=\s*["']?\s*(javascript|data|vbscript):[^"'>\s]*/gi, 'href="#"');
+  
+  // Process tags - keep allowed ones, strip others but keep content
+  result = result.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g, (match, tagName) => {
+    const lowerTag = tagName.toLowerCase();
+    
+    if (ALLOWED_TAGS.has(lowerTag)) {
+      // For opening tags, filter attributes
+      if (!match.startsWith("</")) {
+        // Extract tag and its attributes
+        const tagMatch = match.match(/<([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^>]*)?)\/?>/);
+        if (tagMatch) {
+          const [, tag, attrsString] = tagMatch;
+          const allowedAttrs = ALLOWED_ATTRS[lowerTag];
+          
+          if (allowedAttrs && attrsString) {
+            // Filter to only allowed attributes
+            const attrs: string[] = [];
+            const attrRegex = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
+            let attrMatch;
+            
+            while ((attrMatch = attrRegex.exec(attrsString)) !== null) {
+              const [, attrName, val1, val2, val3] = attrMatch;
+              const attrValue = val1 || val2 || val3 || "";
+              
+              if (allowedAttrs.has(attrName.toLowerCase())) {
+                // Sanitize the attribute value
+                const sanitizedValue = attrValue
+                  .replace(/javascript:/gi, "")
+                  .replace(/data:/gi, "")
+                  .replace(/vbscript:/gi, "");
+                attrs.push(`${attrName}="${escapeHtml(sanitizedValue)}"`);
+              }
+            }
+            
+            // Add rel="noopener noreferrer" to links for security
+            if (lowerTag === "a" && !attrs.some(a => a.startsWith("rel="))) {
+              attrs.push('rel="noopener noreferrer"');
+            }
+            
+            return attrs.length > 0 ? `<${tag} ${attrs.join(" ")}>` : `<${tag}>`;
+          }
+          
+          return `<${tag}>`;
+        }
+      }
+      return match;
+    }
+    
+    // Strip disallowed tags but keep content
+    return "";
   });
+  
+  return result.trim();
 }
 
 /**
@@ -88,7 +199,8 @@ export function sanitizeRichText(html: string): string {
 export function sanitizeUrl(url: string): string {
   if (!url || typeof url !== "string") return "";
   
-  const trimmed = url.trim().toLowerCase();
+  const trimmed = url.trim();
+  const lowerTrimmed = trimmed.toLowerCase();
   
   // Block dangerous protocols
   const dangerousProtocols = [
@@ -100,7 +212,7 @@ export function sanitizeUrl(url: string): string {
   ];
   
   for (const protocol of dangerousProtocols) {
-    if (trimmed.startsWith(protocol)) {
+    if (lowerTrimmed.startsWith(protocol)) {
       return "";
     }
   }
@@ -108,10 +220,10 @@ export function sanitizeUrl(url: string): string {
   // Allow relative URLs, http, https, mailto
   const allowedProtocols = ["http://", "https://", "mailto:", "/", "#"];
   const hasAllowedProtocol = allowedProtocols.some((p) => 
-    trimmed.startsWith(p) || !trimmed.includes(":")
+    lowerTrimmed.startsWith(p) || !lowerTrimmed.includes(":")
   );
   
-  return hasAllowedProtocol ? url.trim() : "";
+  return hasAllowedProtocol ? trimmed : "";
 }
 
 // ============ Specific Field Sanitizers ============
@@ -237,6 +349,3 @@ export function sanitizeObject<T extends Record<string, unknown>>(
 export function createSanitizedHtml(html: string): { __html: string } {
   return { __html: sanitizeRichText(html) };
 }
-
-// Export DOMPurify for advanced use cases
-export { DOMPurify };
