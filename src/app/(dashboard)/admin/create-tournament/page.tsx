@@ -186,6 +186,14 @@ export default function CreateTournamentWizard() {
           newErrors.publish_time = "Daily publish time is required";
         }
         break;
+
+      case 4: // Rules & Description
+        if (!formData.rules.description.trim()) {
+          newErrors.description = "Description is required";
+        } else if (formData.rules.description.length < 20) {
+          newErrors.description = "Description must be at least 20 characters";
+        }
+        break;
     }
 
     setErrors(newErrors);
@@ -338,6 +346,7 @@ export default function CreateTournamentWizard() {
               gameType={formData.game_type}
               data={formData.rules}
               onChange={updateRules}
+              errors={errors}
             />
           )}
 

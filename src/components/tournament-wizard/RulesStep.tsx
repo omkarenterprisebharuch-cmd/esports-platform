@@ -11,9 +11,10 @@ interface RulesStepProps {
   gameType: string;
   data: RulesData;
   onChange: (data: Partial<RulesData>) => void;
+  errors?: Record<string, string>;
 }
 
-export default function RulesStep({ gameType, data, onChange }: RulesStepProps) {
+export default function RulesStep({ gameType, data, onChange, errors = {} }: RulesStepProps) {
   const gameDefaults = getGameDefaults(gameType);
 
   const handleApplyDefaultRules = () => {
@@ -39,7 +40,7 @@ export default function RulesStep({ gameType, data, onChange }: RulesStepProps) 
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Tournament Description
+            Tournament Description *
           </label>
           <button
             type="button"
@@ -55,14 +56,19 @@ export default function RulesStep({ gameType, data, onChange }: RulesStepProps) 
           onChange={(e) => onChange({ description: e.target.value })}
           placeholder="Describe your tournament to attract participants..."
           rows={4}
-          className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl 
+          className={`w-full px-4 py-3 border rounded-xl 
                     bg-white dark:bg-gray-800 text-gray-900 dark:text-white
                     placeholder-gray-400 resize-none
-                    focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                    focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition
+                    ${errors.description ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}
         />
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {data.description.length}/2000 characters
-        </p>
+        {errors.description ? (
+          <p className="mt-1 text-sm text-red-500">{errors.description}</p>
+        ) : (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {data.description.length}/2000 characters
+          </p>
+        )}
       </div>
 
       {/* Match Rules */}

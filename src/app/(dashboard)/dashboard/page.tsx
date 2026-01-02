@@ -61,6 +61,7 @@ export default function DashboardPage() {
   const [gamePreferences, setGamePreferences] = useState<GamePreference[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRecommendations, setLoadingRecommendations] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
@@ -137,6 +138,7 @@ export default function DashboardPage() {
 
   const fetchTournaments = useCallback(() => {
     setLoading(true);
+    setFetchError(null);
     
     const queryString = buildQueryString();
 
@@ -151,7 +153,16 @@ export default function DashboardPage() {
               registeredIds.has(String(t.id))
             );
             setTournaments(registered);
+          } else {
+            console.error("Failed to fetch tournaments:", data.message);
+            setFetchError(data.message || "Failed to load tournaments");
+            setTournaments([]);
           }
+        })
+        .catch((err) => {
+          console.error("Fetch tournaments error:", err);
+          setFetchError("Network error. Please try again.");
+          setTournaments([]);
         })
         .finally(() => setLoading(false));
       return;
@@ -162,7 +173,16 @@ export default function DashboardPage() {
       .then((data) => {
         if (data.success) {
           setTournaments(data.data.tournaments || []);
+        } else {
+          console.error("Failed to fetch tournaments:", data.message);
+          setFetchError(data.message || "Failed to load tournaments");
+          setTournaments([]);
         }
+      })
+      .catch((err) => {
+        console.error("Fetch tournaments error:", err);
+        setFetchError("Network error. Please try again.");
+        setTournaments([]);
       })
       .finally(() => setLoading(false));
   }, [filter, buildQueryString, registeredIds]);
@@ -510,6 +530,17 @@ export default function DashboardPage() {
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin w-8 h-8 border-4 border-gray-900 border-t-transparent rounded-full"></div>
+        </div>
+      ) : fetchError ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-12 text-center">
+          <p className="text-red-600 font-medium mb-2">Failed to load tournaments</p>
+          <p className="text-red-500 text-sm mb-4">{fetchError}</p>
+          <button
+            onClick={fetchTournaments}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+          >
+            Try Again
+          </button>
         </div>
       ) : tournaments.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">

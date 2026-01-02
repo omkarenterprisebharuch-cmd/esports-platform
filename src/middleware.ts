@@ -12,6 +12,14 @@ const publicPaths = [
   "/api/auth/verify-otp",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
+  "/api/auth/refresh",
+];
+
+// API paths that allow GET without authentication (public read)
+const publicApiGetPaths = [
+  "/api/tournaments",
+  "/api/hall-of-fame",
+  "/api/revalidate",
 ];
 
 // Paths exempt from CSRF validation (unauthenticated endpoints)
@@ -34,6 +42,12 @@ export function middleware(request: NextRequest) {
     (path) => pathname === path || pathname.startsWith(path + "/")
   );
 
+  // Check if it's a public API GET endpoint (allow GET without auth)
+  const method = request.method.toUpperCase();
+  const isPublicApiGet = method === "GET" && publicApiGetPaths.some(
+    (path) => pathname === path || pathname.startsWith(path + "/")
+  );
+
   // Get token from httpOnly cookie (primary) or Authorization header (fallback)
   const cookieToken = request.cookies.get("auth_token")?.value;
   const headerToken = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -48,7 +62,8 @@ export function middleware(request: NextRequest) {
   }
 
   // If accessing a protected path without token, redirect to login
-  if (!isPublicPath && !token) {
+  // Skip for public API GET endpoints (they can be accessed without auth)
+  if (!isPublicPath && !isPublicApiGet && !token) {
     // For API routes, return 401
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });

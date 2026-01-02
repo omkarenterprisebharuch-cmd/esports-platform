@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import pool from "@/lib/db";
-import { getUserFromRequest } from "@/lib/auth";
+import { getUserFromRequest, hasPermission, isOrganizer } from "@/lib/auth";
 import {
   successResponse,
   errorResponse,
@@ -347,15 +347,22 @@ export async function POST(request: NextRequest) {
       return unauthorizedResponse();
     }
 
-    // Check if user is host or admin (by username)
+    // Check if user has permission to create tournaments using RBAC
+    // They must be an organizer or owner, OR have is_host flag set
+    const userRole = user.role || "player";
+    const canCreateByRole = hasPermission(userRole, "create_tournament");
+    
+    // Also check is_host flag in database for backwards compatibility
     const userResult = await pool.query(
-      "SELECT is_host, username FROM users WHERE id = $1",
+      "SELECT is_host, username, role FROM users WHERE id = $1",
       [user.id]
     );
     const dbUser = userResult.rows[0];
+    
+    const canCreate = canCreateByRole || dbUser?.is_host || isOrganizer(dbUser?.role) || dbUser?.username === "admin";
 
-    if (!dbUser?.is_host && dbUser?.username !== "admin") {
-      return errorResponse("Only hosts can create tournaments", 403);
+    if (!canCreate) {
+      return errorResponse("Only tournament organizers can create tournaments. Please upgrade your account to organizer status.", 403);
     }
 
     const body = await request.json();
