@@ -50,7 +50,18 @@ export const CACHE_PREFIX = {
 let redis: Redis | null = null;
 let isConnected = false;
 let connectionAttempts = 0;
+let hasWarnedAboutRedis = false;
 const MAX_CONNECTION_ATTEMPTS = 3;
+
+/**
+ * Log Redis warning once (to avoid console spam)
+ */
+function warnOnce(message: string): void {
+  if (!hasWarnedAboutRedis && process.env.NODE_ENV === "development") {
+    console.warn(`⚠️  Redis: ${message} - Cache disabled, app will work without caching.`);
+    hasWarnedAboutRedis = true;
+  }
+}
 
 /**
  * Get or create Redis client
@@ -72,13 +83,13 @@ function getRedisClient(): Redis | null {
     connectionAttempts++;
     
     redis = new Redis(REDIS_URL!, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 1,
       retryStrategy(times) {
-        if (times > 3) {
-          console.error("Redis: Max retries reached, giving up");
+        if (times > 2) {
+          // Silently give up - will warn once via error handler
           return null;
         }
-        const delay = Math.min(times * 200, 2000);
+        const delay = Math.min(times * 200, 1000);
         return delay;
       },
       reconnectOnError(err) {
@@ -86,13 +97,14 @@ function getRedisClient(): Redis | null {
         return targetErrors.some(e => err.message.includes(e));
       },
       enableReadyCheck: true,
-      connectTimeout: 10000,
+      connectTimeout: 5000,
       lazyConnect: true,
     });
 
     redis.on("connect", () => {
       isConnected = true;
       connectionAttempts = 0;
+      hasWarnedAboutRedis = false;
       if (process.env.NODE_ENV === "development") {
         console.log("🔴 Redis connected");
       }
@@ -100,8 +112,18 @@ function getRedisClient(): Redis | null {
 
     redis.on("error", (err) => {
       isConnected = false;
-      if (process.env.NODE_ENV === "development") {
-        console.error("Redis error:", err.message);
+      // Only warn once to avoid console spam
+      const message = err?.message || "Unknown error";
+      if (message.includes("ECONNREFUSED")) {
+        warnOnce("Connection refused (is Redis running?)");
+      } else if (message.includes("ETIMEDOUT")) {
+        warnOnce("Connection timed out");
+      } else if (message.includes("ENOTFOUND")) {
+        warnOnce("Host not found");
+      } else if (message) {
+        warnOnce(message);
+      } else {
+        warnOnce("Connection failed");
       }
     });
 
@@ -116,7 +138,7 @@ function getRedisClient(): Redis | null {
 
     return redis;
   } catch (error) {
-    console.error("Failed to create Redis client:", error);
+    warnOnce("Failed to create client");
     return null;
   }
 }
@@ -134,8 +156,8 @@ export async function get<T>(key: string): Promise<T | null> {
     const value = await client.get(key);
     if (!value) return null;
     return JSON.parse(value) as T;
-  } catch (error) {
-    console.error(`Cache get error for ${key}:`, error);
+  } catch {
+    // Silently fail - already warned about Redis issues
     return null;
   }
 }
@@ -150,8 +172,8 @@ export async function set<T>(key: string, value: T, ttlSeconds: number = TTL.MED
   try {
     await client.setex(key, ttlSeconds, JSON.stringify(value));
     return true;
-  } catch (error) {
-    console.error(`Cache set error for ${key}:`, error);
+  } catch {
+    // Silently fail - already warned about Redis issues
     return false;
   }
 }
@@ -166,8 +188,8 @@ export async function del(key: string): Promise<boolean> {
   try {
     await client.del(key);
     return true;
-  } catch (error) {
-    console.error(`Cache delete error for ${key}:`, error);
+  } catch {
+    // Silently fail - already warned about Redis issues
     return false;
   }
 }
@@ -199,8 +221,8 @@ export async function invalidatePattern(pattern: string): Promise<number> {
     }
 
     return deletedCount;
-  } catch (error) {
-    console.error(`Cache invalidate pattern error for ${pattern}:`, error);
+  } catch {
+    // Silently fail - already warned about Redis issues
     return 0;
   }
 }
