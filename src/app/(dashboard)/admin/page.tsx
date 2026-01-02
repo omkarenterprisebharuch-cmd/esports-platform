@@ -115,7 +115,12 @@ export default function AdminPage() {
       .then((data) => {
         if (data.success) {
           setTournaments(data.data.tournaments || []);
+        } else {
+          console.error("Failed to fetch tournaments:", data.message);
         }
+      })
+      .catch((error) => {
+        console.error("Error fetching tournaments:", error);
       })
       .finally(() => setLoading(false));
   };
@@ -283,8 +288,13 @@ export default function AdminPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
-        setMessage({ type: "success", text: "Tournament updated successfully!" });
+      if (res.ok && data.success) {
+        // Verify the update was actually applied by checking the response
+        const updatedTournament = data.data?.tournament;
+        if (updatedTournament) {
+          console.log("Tournament updated successfully:", updatedTournament.id);
+        }
+        setMessage({ type: "success", text: data.message || "Tournament updated successfully!" });
         setEditingId(null);
         setEditingTournament(null);
         setForm({
@@ -307,10 +317,11 @@ export default function AdminPage() {
         fetchMyTournaments();
         setActiveTab("tournaments");
       } else {
-        setMessage({ type: "error", text: data.message });
+        setMessage({ type: "error", text: data.message || "Failed to update tournament" });
       }
-    } catch {
-      setMessage({ type: "error", text: "Failed to update tournament" });
+    } catch (error) {
+      console.error("Update tournament error:", error);
+      setMessage({ type: "error", text: "Failed to update tournament. Please try again." });
     } finally {
       setCreating(false);
     }

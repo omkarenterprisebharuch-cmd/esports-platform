@@ -18,11 +18,11 @@
  *   --tournament <id>  Warm specific tournament cache
  */
 
-import { warmCache, cachedQueries } from "../src/lib/db-cache";
-import { cache } from "../src/lib/redis";
-import pool from "../src/lib/db";
+// Load environment variables FIRST, before any other imports
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
 
-// Parse command line arguments
+// Parse command line arguments (before dynamic imports)
 const args = process.argv.slice(2);
 const options = {
   all: args.includes("--all") || args.length === 0,
@@ -38,19 +38,38 @@ async function main() {
   console.log("       🔥 Cache Warming Utility            ");
   console.log("═══════════════════════════════════════════\n");
 
-  // Check Redis connection
-  if (!cache.isAvailable()) {
-    console.log("⚠️  Waiting for Redis connection...");
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    if (!cache.isAvailable()) {
-      console.error("❌ Redis is not available. Cannot warm cache.");
-      console.log("   Make sure REDIS_URL environment variable is set.");
-      process.exit(1);
-    }
-  }
+  // Dynamic imports AFTER dotenv has loaded
+  const { warmCache, cachedQueries } = await import("../src/lib/db-cache");
+  const { cache } = await import("../src/lib/redis");
+  const pool = (await import("../src/lib/db")).default;
 
-  console.log("✅ Redis connected\n");
+  // Try to trigger a Redis operation to force connection
+  console.log("⏳ Connecting to Redis...");
+  
+  // Attempt to get stats which triggers connection
+  let retries = 0;
+  const maxRetries = 5;
+  
+  while (retries < maxRetries) {
+    const stats = await cache.getStats();
+    if (stats.connected) {
+      console.log("✅ Redis connected\n");
+      break;
+    }
+    retries++;
+    console.log(`   Retry ${retries}/${maxRetries}...`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  // Final check
+  const finalStats = await cache.getStats();
+  if (!finalStats.connected) {
+    console.error("❌ Redis is not available. Cannot warm cache.");
+    console.log("   Make sure REDIS_URL environment variable is set correctly.");
+    console.log(`   Current REDIS_URL: ${process.env.REDIS_URL ? "Set (hidden)" : "Not set"}`);
+    await pool.end();
+    process.exit(1);
+  }
 
   const startTime = Date.now();
   let warmedCount = 0;

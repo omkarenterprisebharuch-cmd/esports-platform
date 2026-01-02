@@ -44,6 +44,7 @@ export default function NotificationCenter() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hasFetchedNotifications, setHasFetchedNotifications] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Fetch notifications
@@ -162,15 +163,22 @@ export default function NotificationCenter() {
     };
   }, [isOpen]);
 
-  // Fetch data when opening
+  // Fetch data ONLY when user explicitly opens the notification panel (clicks bell icon)
+  // This ensures no API calls are made until user interaction
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasFetchedNotifications) {
       fetchNotifications();
+      setHasFetchedNotifications(true);
       if (!preferences) {
         fetchPreferences();
       }
     }
-  }, [isOpen, fetchNotifications, fetchPreferences, preferences]);
+  }, [isOpen, hasFetchedNotifications, fetchNotifications, fetchPreferences, preferences]);
+
+  // Allow manual refresh when panel is reopened after being closed
+  const handleRefresh = useCallback(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -222,14 +230,26 @@ export default function NotificationCenter() {
           <div className="border-b border-gray-200">
             <div className="flex items-center justify-between px-4 py-3">
               <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-              {unreadCount > 0 && activeTab === "notifications" && (
-                <button
-                  onClick={markAllAsRead}
-                  className="text-sm text-violet-600 hover:text-violet-800 font-medium"
-                >
-                  Mark all read
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {activeTab === "notifications" && (
+                  <button
+                    onClick={handleRefresh}
+                    disabled={loading}
+                    className="text-sm text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
+                    title="Refresh notifications"
+                  >
+                    🔄
+                  </button>
+                )}
+                {unreadCount > 0 && activeTab === "notifications" && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-sm text-violet-600 hover:text-violet-800 font-medium"
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </div>
             </div>
             {/* Tabs */}
             <div className="flex border-t border-gray-100">

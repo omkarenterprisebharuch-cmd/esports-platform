@@ -29,6 +29,9 @@ export default function MyRegistrationsPage() {
   const [showCredentials, setShowCredentials] = useState<Record<number, boolean>>({});
   const { syncFromData } = useRegistrationCache();
 
+  // Fetch registrations ONLY when user visits this page
+  // This API call is intentionally NOT made from dashboard or other pages
+  // to reduce unnecessary server load
   useEffect(() => {
     const token = localStorage.getItem("token");
 

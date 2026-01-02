@@ -53,10 +53,17 @@ async function fetchRegistrationIdsFromServer(): Promise<string[]> {
 /**
  * Provider that caches user's registered tournament IDs
  * 
+ * IMPORTANT: This provider NEVER makes API calls on mount.
+ * It only loads cached data from IndexedDB.
+ * 
+ * API calls to /api/registrations/my-registrations are ONLY made:
+ * 1. When user visits /my-registrations page (the page itself fetches)
+ * 2. When refresh() is explicitly called
+ * 
  * Hybrid caching strategy:
  * - Layer 1: IndexedDB (Persistent) - Survives refresh, shared across tabs
  * - Layer 2: Memory Cache (Fast) - Instant access
- * - Layer 3: Server validation - Periodic revalidation every 10 minutes
+ * - Layer 3: Server validation - Only on explicit refresh()
  */
 export function RegistrationCacheProvider({ children }: { children: ReactNode }) {
   const [registeredIds, setRegisteredIds] = useState<Set<string>>(() => getMemoryCache());
