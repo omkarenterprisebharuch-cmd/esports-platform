@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { isAuthenticated } from "@/lib/api-client";
 
@@ -37,7 +37,29 @@ const STATUS_OPTIONS = [
   { value: "completed", label: "Completed" },
 ];
 
+// Loading fallback component
+function TournamentsLoading() {
+  return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-gray-400">Loading tournaments...</p>
+      </div>
+    </div>
+  );
+}
+
+// Main page wrapper with Suspense
 export default function PublicTournamentsPage() {
+  return (
+    <Suspense fallback={<TournamentsLoading />}>
+      <TournamentsContent />
+    </Suspense>
+  );
+}
+
+// Actual content component that uses useSearchParams
+function TournamentsContent() {
   const searchParams = useSearchParams();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);

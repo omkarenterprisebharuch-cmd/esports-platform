@@ -1,13 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader } from "@/components/ui/Loader";
 
 type Step = "form" | "otp";
 
+// Loading fallback for Suspense
+function RegisterLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={<RegisterLoading />}>
+      <RegisterContent />
+    </Suspense>
+  );
+}
+
+function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("form");
