@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Cannot request from self
-    if (organizer.id === parseInt(user.id)) {
+    if (organizer.id === user.id) {
       return errorResponse("Cannot request deposit from yourself", 400);
     }
 

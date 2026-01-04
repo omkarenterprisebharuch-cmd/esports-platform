@@ -1219,7 +1219,7 @@ export async function getTransactionHistory(
 /**
  * Get all organizers for owner deposit selection
  */
-export async function getOrganizers(): Promise<{ id: number; username: string; email: string; wallet_balance: number }[]> {
+export async function getOrganizers(): Promise<{ id: string; username: string; email: string; wallet_balance: number }[]> {
   const result = await pool.query(
     `SELECT id, username, email, wallet_balance 
      FROM users 

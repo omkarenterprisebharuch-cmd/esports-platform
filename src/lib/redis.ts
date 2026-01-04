@@ -298,10 +298,15 @@ export const cacheKeys = {
   tournamentList: (filters: {
     status?: string;
     gameType?: string;
+    filter?: string;
     page?: number;
     limit?: number;
     sort?: string;
     hosted?: string;
+    search?: string;
+    tournamentType?: string;
+    minPrize?: string;
+    maxPrize?: string;
   }): string => {
     const parts = [CACHE_PREFIX.TOURNAMENTS, "list"];
     
@@ -309,10 +314,15 @@ export const cacheKeys = {
     const filterParts: string[] = [];
     if (filters.status) filterParts.push(`s:${filters.status}`);
     if (filters.gameType) filterParts.push(`g:${filters.gameType}`);
+    if (filters.filter) filterParts.push(`f:${filters.filter}`);
     if (filters.page) filterParts.push(`p:${filters.page}`);
     if (filters.limit) filterParts.push(`l:${filters.limit}`);
     if (filters.sort) filterParts.push(`o:${filters.sort}`);
     if (filters.hosted) filterParts.push(`h:${filters.hosted}`);
+    if (filters.search) filterParts.push(`q:${filters.search}`);
+    if (filters.tournamentType) filterParts.push(`tt:${filters.tournamentType}`);
+    if (filters.minPrize) filterParts.push(`minp:${filters.minPrize}`);
+    if (filters.maxPrize) filterParts.push(`maxp:${filters.maxPrize}`);
     
     if (filterParts.length > 0) {
       parts.push(filterParts.sort().join(":"));

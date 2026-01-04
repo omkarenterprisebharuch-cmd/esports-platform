@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = (page - 1) * limit;
     const templates = searchParams.get("templates");
+    const search = searchParams.get("search");
 
     // Get user for hosted filter
     let userId: string | null = null;
@@ -55,16 +56,23 @@ export async function GET(request: NextRequest) {
       userId = user.id;
     }
 
+    // Get tournament type for filtering
+    const tournamentType = searchParams.get("tournament_type");
+
     // Build cache key for non-user-specific requests
     // User-specific requests (hosted=true) are not cached
-    const isCacheable = hosted !== "true" && !userId;
+    const isCacheable = hosted !== "true" && !userId && !search;
     const cacheKey = isCacheable
       ? cacheKeys.tournamentList({
           status: status || undefined,
           gameType: gameType || undefined,
+          filter: filter || undefined,
           page,
           limit,
           sort,
+          tournamentType: tournamentType || undefined,
+          minPrize: minPrize || undefined,
+          maxPrize: maxPrize || undefined,
         })
       : null;
 
@@ -150,13 +158,21 @@ export async function GET(request: NextRequest) {
 
     // Filter by computed status
     if (filter === "upcoming") {
-      query += ` AND t.registration_start_date > NOW()`;
+      // Upcoming: registration has ended but tournament hasn't started
+      query += ` AND t.registration_end_date <= NOW() AND t.tournament_start_date > NOW()`;
+    } else if (filter === "registration_open") {
+      // Registration open: registration period is active
+      query += ` AND t.registration_start_date <= NOW() AND t.registration_end_date > NOW()`;
     } else if (filter === "live") {
       query += ` AND t.registration_start_date <= NOW() AND t.registration_end_date > NOW()`;
     } else if (filter === "active") {
       query += ` AND t.registration_end_date > NOW()`;
     } else if (filter === "ongoing") {
+      // Ongoing: tournament has started but not ended
       query += ` AND t.tournament_start_date <= NOW() AND t.tournament_end_date > NOW()`;
+    } else if (filter === "completed") {
+      // Completed: tournament has ended
+      query += ` AND t.tournament_end_date <= NOW()`;
     }
 
     if (status) {
@@ -168,6 +184,20 @@ export async function GET(request: NextRequest) {
     if (gameType) {
       query += ` AND t.game_type = $${paramIndex}`;
       params.push(gameType);
+      paramIndex++;
+    }
+
+    // Tournament type filter (solo, duo, squad)
+    if (tournamentType) {
+      query += ` AND LOWER(t.tournament_type) = LOWER($${paramIndex})`;
+      params.push(tournamentType);
+      paramIndex++;
+    }
+
+    // Search filter - search in tournament name
+    if (search) {
+      query += ` AND t.tournament_name ILIKE $${paramIndex}`;
+      params.push(`%${search}%`);
       paramIndex++;
     }
 

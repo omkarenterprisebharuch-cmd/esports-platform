@@ -46,13 +46,13 @@ export async function POST(request: NextRequest) {
     const { email, otp } = validation.data;
 
     // Verify OTP
-    const verification = verifyOTP(email, otp);
+    const verification = await verifyOTP(email, otp);
     if (!verification.valid) {
       return errorResponse(verification.message);
     }
 
     // Get pending registration data
-    const pendingData = getPendingRegistration(email);
+    const pendingData = await getPendingRegistration(email);
     if (!pendingData) {
       return errorResponse(
         "Registration session expired. Please start again."
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Clean up pending registration
-    deletePendingRegistration(email);
+    await deletePendingRegistration(email);
     const token = generateAccessToken({
       id: user.id,
       email: user.email,

@@ -39,10 +39,11 @@ const csrfExemptPaths = [
 ];
 
 // Paths that require host/admin role
-const adminPaths = ["/admin"];
+const adminPaths = ["/admin", "/app/admin"];
 
 // Paths that need auth - redirect to login with return URL
 const protectedPaths = [
+  "/app",
   "/dashboard",
   "/profile",
   "/my-teams",
@@ -72,7 +73,7 @@ export function middleware(request: NextRequest) {
   const headerToken = request.headers.get("authorization")?.replace("Bearer ", "");
   const token = cookieToken || headerToken;
 
-  // If accessing a public path and has token, redirect to dashboard
+  // If accessing a public path and has token, redirect to app
   if (isPublicPath && token && pathname !== "/api/auth/login" && pathname !== "/api/auth/logout") {
     // Don't redirect API routes
     if (!pathname.startsWith("/api/")) {
@@ -80,7 +81,7 @@ export function middleware(request: NextRequest) {
       const viewingOnlyPaths = ["/", "/home", "/tournaments", "/leaderboard", "/hall-of-fame", "/privacy-policy", "/terms"];
       const isViewingPath = viewingOnlyPaths.some(p => pathname === p || (p !== "/" && pathname.startsWith(p + "/")));
       if (!isViewingPath) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
+        return NextResponse.redirect(new URL("/app", request.url));
       }
     }
   }

@@ -37,7 +37,7 @@ function LoginContent() {
   const [redirectMessage, setRedirectMessage] = useState<string | null>(null);
 
   // Get redirect URL from query params (used when redirecting from protected routes)
-  const redirectTo = searchParams.get("redirect") || "/dashboard";
+  const redirectTo = searchParams.get("redirect") || "/app";
   const reason = searchParams.get("reason");
 
   useEffect(() => {
@@ -82,9 +82,9 @@ function LoginContent() {
       localStorage.setItem("last_activity_timestamp", Date.now().toString());
       localStorage.setItem("session_active", "true");
 
-      // Redirect to the original destination or dashboard
+      // Redirect to the original destination or app
       // Validate redirect URL to prevent open redirect attacks
-      const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+      const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/app";
       router.push(safeRedirect);
       router.refresh();
     } catch (err) {

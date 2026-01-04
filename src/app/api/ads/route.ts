@@ -8,7 +8,6 @@ export const dynamic = "force-dynamic";
 // Ad row type from database
 interface AdRow {
   ad_id: number;
-  name: string;
   ad_type: string;
   image_url?: string;
   video_url?: string;
@@ -36,29 +35,35 @@ export async function GET(request: NextRequest) {
     }
     
     // Get eligible ads for this placement
-    const rows = await query<AdRow>(
-      `SELECT 
-        a.id as ad_id,
-        a.name,
-        a.ad_type,
-        a.image_url,
-        a.video_url,
-        a.thumbnail_url,
-        a.title,
-        a.description,
-        a.cta_text,
-        a.destination_url
-      FROM advertisements a
-      WHERE 
-        a.status = 'active'
-        AND $1 = ANY(a.placement_ids)
-        AND (a.start_date IS NULL OR a.start_date <= NOW())
-        AND (a.end_date IS NULL OR a.end_date > NOW())
-        AND (a.total_impression_limit IS NULL OR a.total_impressions < a.total_impression_limit)
-      ORDER BY RANDOM()
-      LIMIT 1`,
-      [placementId]
-    );
+    let rows: AdRow[] = [];
+    try {
+      rows = await query<AdRow>(
+        `SELECT 
+          a.id as ad_id,
+          a.ad_type,
+          a.image_url,
+          a.video_url,
+          a.thumbnail_url,
+          a.title,
+          a.description,
+          a.cta_text,
+          a.destination_url
+        FROM advertisements a
+        WHERE 
+          a.status = 'active'
+          AND $1 = ANY(a.placement_ids)
+          AND (a.start_date IS NULL OR a.start_date <= NOW())
+          AND (a.end_date IS NULL OR a.end_date > NOW())
+          AND (a.total_impression_limit IS NULL OR a.total_impressions < a.total_impression_limit)
+        ORDER BY RANDOM()
+        LIMIT 1`,
+        [placementId]
+      );
+    } catch (queryError) {
+      // Table might not exist or no ads yet - return null ad gracefully
+      console.log("No ads available or table not ready:", queryError);
+      return NextResponse.json({ success: true, ad: null });
+    }
     
     if (rows.length === 0) {
       return NextResponse.json({ success: true, ad: null });
@@ -70,7 +75,7 @@ export async function GET(request: NextRequest) {
     
     const ad: ServedAd = {
       adId: adRow.ad_id,
-      name: adRow.name,
+      name: adRow.title || "Ad",
       adType: adRow.ad_type as ServedAd["adType"],
       imageUrl: adRow.image_url,
       videoUrl: adRow.video_url,

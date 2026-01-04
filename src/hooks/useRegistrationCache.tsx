@@ -15,7 +15,6 @@ import {
 } from "@/lib/registration-cache-db";
 
 interface RegistrationCacheContextType {
-  /** Set of tournament IDs the user is registered for */
   registeredIds: Set<string>;
   /** Whether the cache is currently loading */
   loading: boolean;

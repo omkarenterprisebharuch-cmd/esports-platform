@@ -47,7 +47,7 @@ function RegisterContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Get redirect URL from query params
-  const redirectTo = searchParams.get("redirect") || "/dashboard";
+  const redirectTo = searchParams.get("redirect") || "/app";
 
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,8 +122,8 @@ function RegisterContent() {
       localStorage.setItem("user", JSON.stringify(data.data.user));
       document.cookie = `token=${data.data.token}; path=/; max-age=${7 * 24 * 60 * 60}`;
 
-      // Redirect to the original destination or dashboard
-      const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+      // Redirect to the original destination or app
+      const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/app";
       router.push(safeRedirect);
       router.refresh();
     } catch (err) {

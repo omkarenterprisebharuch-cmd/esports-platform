@@ -76,14 +76,14 @@ export async function POST(request: NextRequest) {
 
     // Generate and store OTP
     const otp = generateOTP();
-    storeOTP(email, otp);
+    await storeOTP(email, otp);
 
     // Get client info for consent tracking
     const userAgent = request.headers.get("user-agent") || undefined;
 
     // Store pending registration data temporarily (including consent info)
     const hashedPassword = await hashPassword(password);
-    storePendingRegistration(email, {
+    await storePendingRegistration(email, {
       username,
       email,
       hashedPassword,

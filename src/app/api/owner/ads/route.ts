@@ -91,10 +91,8 @@ export async function GET(request: NextRequest) {
         CASE WHEN a.total_impressions > 0 
           THEN ROUND((a.total_clicks::numeric / a.total_impressions) * 100, 2)
           ELSE 0 
-        END as ctr,
-        u.username as created_by_username
+        END as ctr
       FROM advertisements a
-      LEFT JOIN users u ON a.created_by = u.id
       ${whereClause}
       ORDER BY a.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
