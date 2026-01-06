@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// ============ Bot Detection Configuration ============
+const BOT_USER_AGENT_PATTERNS = [
+  /bot/i, /crawl/i, /spider/i, /scraper/i, /curl/i, /wget/i,
+  /python-requests/i, /python-urllib/i, /http-client/i, /java\//i,
+  /go-http-client/i, /axios/i, /node-fetch/i, /phantom/i,
+  /headless/i, /selenium/i, /puppeteer/i, /playwright/i,
+  /mechanize/i, /scrapy/i, /httpclient/i, /libwww/i,
+];
+
 // Paths that don't require authentication
 const publicPaths = [
   "/",
@@ -52,8 +61,124 @@ const protectedPaths = [
   "/owner",
 ];
 
+// ============ Bot Detection Helper ============
+function detectBot(request: NextRequest): { isBot: boolean; reason?: string } {
+  const userAgent = request.headers.get("user-agent") || "";
+  
+  // No user agent is highly suspicious
+  if (!userAgent) {
+    return { isBot: true, reason: "no-user-agent" };
+  }
+  
+  // Check against known bot patterns
+  for (const pattern of BOT_USER_AGENT_PATTERNS) {
+    if (pattern.test(userAgent)) {
+      return { isBot: true, reason: `bot-pattern:${pattern.source}` };
+    }
+  }
+  
+  // Missing essential browser headers
+  const acceptLanguage = request.headers.get("accept-language");
+  const acceptEncoding = request.headers.get("accept-encoding");
+  const accept = request.headers.get("accept");
+  
+  // Real browsers always send these
+  if (!acceptLanguage && !accept) {
+    return { isBot: true, reason: "missing-browser-headers" };
+  }
+  
+  return { isBot: false };
+}
+
+// ============ Simple In-Edge Rate Limiting ============
+// Note: For true distributed rate limiting, use Redis in API routes
+// This provides first-line defense at the edge
+const edgeRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const EDGE_RATE_LIMIT = 120; // requests per minute at edge
+const EDGE_RATE_WINDOW = 60 * 1000; // 1 minute
+
+function checkEdgeRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = edgeRateLimitMap.get(ip);
+  
+  // Cleanup old entries periodically (every 100 checks)
+  if (Math.random() < 0.01) {
+    for (const [key, value] of edgeRateLimitMap.entries()) {
+      if (now > value.resetTime) {
+        edgeRateLimitMap.delete(key);
+      }
+    }
+  }
+  
+  if (!entry || now > entry.resetTime) {
+    edgeRateLimitMap.set(ip, { count: 1, resetTime: now + EDGE_RATE_WINDOW });
+    return true; // allowed
+  }
+  
+  if (entry.count >= EDGE_RATE_LIMIT) {
+    return false; // rate limited
+  }
+  
+  entry.count++;
+  return true; // allowed
+}
+
+function getClientIp(request: NextRequest): string {
+  // Vercel provides real IP
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) return realIp;
+  
+  // Cloudflare provides connecting IP
+  const cfIp = request.headers.get("cf-connecting-ip");
+  if (cfIp) return cfIp;
+  
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim();
+  }
+  
+  return "unknown";
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const clientIp = getClientIp(request);
+
+  // ============ Bot Detection (First Line of Defense) ============
+  // Block obvious bots from accessing API endpoints
+  if (pathname.startsWith("/api/")) {
+    const botCheck = detectBot(request);
+    
+    // Allow legitimate crawlers to access specific endpoints
+    const allowedBotPaths = ["/api/revalidate"]; // ISR revalidation
+    const isAllowedBotPath = allowedBotPaths.some(p => pathname.startsWith(p));
+    
+    if (botCheck.isBot && !isAllowedBotPath) {
+      console.warn(`[Bot Blocked] IP: ${clientIp}, Reason: ${botCheck.reason}, Path: ${pathname}`);
+      return NextResponse.json(
+        { success: false, error: "ACCESS_DENIED", message: "Automated requests are not allowed" },
+        { status: 403 }
+      );
+    }
+  }
+
+  // ============ Edge Rate Limiting ============
+  if (pathname.startsWith("/api/")) {
+    if (!checkEdgeRateLimit(clientIp)) {
+      console.warn(`[Rate Limited] IP: ${clientIp}, Path: ${pathname}`);
+      return NextResponse.json(
+        { success: false, error: "RATE_LIMITED", message: "Too many requests. Please slow down." },
+        { 
+          status: 429,
+          headers: {
+            "Retry-After": "60",
+            "X-RateLimit-Limit": EDGE_RATE_LIMIT.toString(),
+            "X-RateLimit-Remaining": "0",
+          }
+        }
+      );
+    }
+  }
 
   // Check if it's a public path
   const isPublicPath = publicPaths.some(

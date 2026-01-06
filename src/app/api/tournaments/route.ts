@@ -10,6 +10,12 @@ import {
 } from "@/lib/api-response";
 import { sanitizeTournamentName, sanitizeDescription, sanitizeText, sanitizeUrl } from "@/lib/sanitize";
 import { cache, cacheKeys, invalidateTournamentCaches, TTL } from "@/lib/redis";
+import { 
+  checkDistributedRateLimit, 
+  getClientIpFromRequest, 
+  tournamentListLimit,
+  getBotSignals 
+} from "@/lib/rate-limit-distributed";
 
 /**
  * GET /api/tournaments
@@ -30,6 +36,34 @@ import { cache, cacheKeys, invalidateTournamentCaches, TTL } from "@/lib/redis";
  */
 export async function GET(request: NextRequest) {
   try {
+    // Distributed rate limiting for public endpoint
+    const clientIp = getClientIpFromRequest(request);
+    const rateLimit = await checkDistributedRateLimit(clientIp, tournamentListLimit);
+    if (!rateLimit.success) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "RATE_LIMITED",
+          message: `Too many requests. Please try again in ${rateLimit.resetIn} seconds.`,
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": rateLimit.resetIn.toString(),
+            "X-RateLimit-Limit": rateLimit.limit.toString(),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+
+    // Bot detection logging (non-blocking)
+    const botSignals = getBotSignals(request);
+    if (botSignals.isLikelyBot) {
+      console.warn(`[Bot Signal] IP: ${clientIp}, Signals: ${botSignals.signals.join(", ")}`);
+    }
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const gameType = searchParams.get("game_type");

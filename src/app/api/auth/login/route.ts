@@ -15,6 +15,11 @@ import {
   errorResponse,
   serverErrorResponse,
 } from "@/lib/api-response";
+import {
+  checkDistributedRateLimit,
+  getClientIpFromRequest,
+  authRateLimit,
+} from "@/lib/rate-limit-distributed";
 import { 
   checkRateLimit, 
   getClientIp, 
@@ -39,12 +44,32 @@ import {
  * User login with access token (15min) + refresh token (7 days or 30 days with remember_me)
  * - Access token: httpOnly cookie (15 min expiry)
  * - Refresh token: httpOnly cookie (7 day expiry, or 30 days with remember_me), hash stored in DB
- * Rate limited: 5 attempts per 15 minutes
+ * Rate limited: 5 attempts per 15 minutes (distributed via Redis)
  */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const clientIp = getClientIp(request);
+    // Distributed rate limiting (Redis-based, works across serverless instances)
+    const clientIp = getClientIpFromRequest(request);
+    const distributedRateLimit = await checkDistributedRateLimit(clientIp, authRateLimit);
+    if (!distributedRateLimit.success) {
+      const message = distributedRateLimit.blocked
+        ? `Too many login attempts. You are temporarily blocked. Try again in ${Math.ceil(distributedRateLimit.resetIn / 60)} minutes.`
+        : `Too many login attempts. Please try again in ${distributedRateLimit.resetIn} seconds.`;
+      
+      return NextResponse.json(
+        { success: false, error: "AUTH_1009", message },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": distributedRateLimit.resetIn.toString(),
+            "X-RateLimit-Limit": distributedRateLimit.limit.toString(),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+
+    // Fallback in-memory rate limiting (defense in depth)
     const rateLimitResult = checkRateLimit(clientIp, loginRateLimit);
     if (!rateLimitResult.success) {
       return rateLimitResponse(rateLimitResult);
