@@ -315,56 +315,6 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <Link href="/" className="flex items-center gap-2 font-bold text-xl text-gray-900 dark:text-white mb-4">
-                <span className="text-2xl">🎮</span>
-                <span>Esports Platform</span>
-              </Link>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                The ultimate destination for competitive gaming.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-bold text-gray-900 dark:text-white mb-4">Platform</h4>
-              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><Link href="/tournaments" className="hover:text-gray-900 dark:hover:text-white">Tournaments</Link></li>
-                <li><Link href="/leaderboard" className="hover:text-gray-900 dark:hover:text-white">Leaderboard</Link></li>
-                <li><Link href="/hall-of-fame" className="hover:text-gray-900 dark:hover:text-white">Hall of Fame</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold text-gray-900 dark:text-white mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><Link href="/privacy-policy" className="hover:text-gray-900 dark:hover:text-white">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-gray-900 dark:hover:text-white">Terms of Service</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold text-gray-900 dark:text-white mb-4">Account</h4>
-              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                {isLoggedIn ? (
-                  <>
-                    <li><Link href="/app" className="hover:text-gray-900 dark:hover:text-white">Dashboard</Link></li>
-                    <li><Link href="/profile" className="hover:text-gray-900 dark:hover:text-white">Profile</Link></li>
-                  </>
-                ) : (
-                  <>
-                    <li><Link href="/login" className="hover:text-gray-900 dark:hover:text-white">Sign In</Link></li>
-                    <li><Link href="/register" className="hover:text-gray-900 dark:hover:text-white">Create Account</Link></li>
-                  </>
-                )}
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-200 dark:border-gray-800 pt-8 text-center text-sm text-gray-600 dark:text-gray-400">
-            © {new Date().getFullYear()} Esports Platform. All rights reserved | Vaibhav Lohiya .
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

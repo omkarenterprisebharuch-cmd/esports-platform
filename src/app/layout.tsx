@@ -7,6 +7,7 @@ import { PWAProvider } from "@/components/pwa";
 // import { Analytics } from "@vercel/analytics/react";
 // import { SpeedInsights } from "@vercel/speed-insights/next";
 import { NavigationLoader } from "@/components/ui/Loader";
+import { Footer } from "@/components/ui";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -70,8 +71,13 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
           <PWAProvider>
-            <NavigationLoader />
-            {children}
+            <div className="min-h-screen flex flex-col">
+              <NavigationLoader />
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
           </PWAProvider>
         </ThemeProvider>
         {/* Analytics disabled for local dev */}
