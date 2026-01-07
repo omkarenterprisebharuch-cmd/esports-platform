@@ -1,28 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useSidebar } from "@/contexts/SidebarContext";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
-  const pathname = usePathname();
-  const { isCollapsed } = useSidebar();
-  
-  // Check if we're in the app section (authenticated area with sidebar)
-  const isInAppSection = pathname?.startsWith("/app");
-  
-  // Calculate margin for sidebar - only on large screens and when in app section
-  const sidebarMargin = isInAppSection 
-    ? isCollapsed 
-      ? "lg:ml-20" 
-      : "lg:ml-72"
-    : "";
 
   return (
-    <footer className={`bg-gray-800 border-t border-gray-700 transition-all duration-300 ${sidebarMargin}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <footer className="bg-gray-800 border-t border-gray-700">
+      {/* Mobile Compact Footer */}
+      <div className="md:hidden px-4 py-4">
+        <div className="flex flex-col items-center gap-3">
+          <h3 className="text-base font-bold text-white">Nova Tourney</h3>
+          
+          {/* Quick Links Row */}
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+            <Link href="/tournaments" className="text-gray-400 hover:text-orange-500 text-xs">
+              Tournaments
+            </Link>
+            <Link href="/contact" className="text-gray-400 hover:text-orange-500 text-xs">
+              Contact
+            </Link>
+            <Link href="/terms" className="text-gray-400 hover:text-orange-500 text-xs">
+              Terms
+            </Link>
+            <Link href="/privacy-policy" className="text-gray-400 hover:text-orange-500 text-xs">
+              Privacy
+            </Link>
+            <Link href="/refund-policy" className="text-gray-400 hover:text-orange-500 text-xs">
+              Refunds
+            </Link>
+          </div>
+          
+          {/* Contact Info */}
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-gray-500">
+            <a href="mailto:support@novatourney.online" className="hover:text-orange-500">
+              📧 support@novatourney.online
+            </a>
+          </div>
+          
+          {/* Copyright */}
+          <p className="text-gray-500 text-xs">
+            © {currentYear} Nova Tourney
+          </p>
+        </div>
+      </div>
+
+      {/* Tablet & Desktop Full Footer */}
+      <div className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand Section */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-white">Nova Tourney</h3>
@@ -93,6 +118,37 @@ export default function Footer() {
                 >
                   Refund and Cancellation
                 </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Contact Us */}
+          <div className="space-y-4">
+            <h4 className="text-md font-semibold text-white">Contact Us</h4>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500">📧</span>
+                <a
+                  href="mailto:support@novatourney.online"
+                  className="text-gray-400 hover:text-orange-500 transition-colors text-sm"
+                >
+                  support@novatourney.online
+                </a>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500">📱</span>
+                <a
+                  href="tel:+919876543210"
+                  className="text-gray-400 hover:text-orange-500 transition-colors text-sm"
+                >
+                  +91 98765 43210
+                </a>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500">⏰</span>
+                <span className="text-gray-400 text-sm">
+                  Mon - Sat: 10AM - 8PM
+                </span>
               </li>
             </ul>
           </div>

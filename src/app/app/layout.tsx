@@ -10,6 +10,8 @@ import { api, logout, isAuthenticated, isLogoutInProgress, setLogoutInProgress }
 import { AppSidebar } from "@/components/app/AppSidebar";
 import { AppHeader } from "@/components/app/AppHeader";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
+import Footer from "@/components/ui/Footer";
+import { BottomNavigation } from "@/components/app/BottomNavigation";
 
 // Lazy load notification prompt - not critical for initial render
 const NotificationPrompt = dynamic(
@@ -236,7 +238,12 @@ function AppLayoutContent({
             </Suspense>
           </ErrorBoundary>
         </div>
+        {/* Footer - visible on all screens */}
+        <Footer />
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNavigation />
 
       {/* Notification Permission Prompt */}
       <NotificationPrompt showOnDenied />

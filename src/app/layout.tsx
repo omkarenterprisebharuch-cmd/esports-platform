@@ -7,7 +7,8 @@ import { PWAProvider } from "@/components/pwa";
 // import { Analytics } from "@vercel/analytics/react";
 // import { SpeedInsights } from "@vercel/speed-insights/next";
 import { NavigationLoader } from "@/components/ui/Loader";
-import { Footer, DevelopmentNotice } from "@/components/ui";
+import ConditionalFooter from "@/components/ui/ConditionalFooter";
+import { DevelopmentNotice } from "@/components/ui/DevelopmentNotice";
 import { Providers } from "@/components/Providers";
 
 const inter = Inter({
@@ -79,7 +80,7 @@ export default function RootLayout({
                 <main className="flex-1">
                   {children}
                 </main>
-                <Footer />
+                <ConditionalFooter />
                 <DevelopmentNotice 
                   position="bottom-right"
                   autoDismissDelay={5000}

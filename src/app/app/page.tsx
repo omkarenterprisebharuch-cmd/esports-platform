@@ -149,33 +149,11 @@ export default function AppHomePage() {
               ? `We found ${recommendations.length} tournaments just for you. Ready to compete?`
               : "Find exciting tournaments and start competing today!"}
           </p>
-          
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <p className="text-2xl font-bold text-white">{stats.totalRegistrations}</p>
-              <p className="text-sm text-gray-400">Registrations</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <p className="text-2xl font-bold text-white">{stats.activeTournaments}</p>
-              <p className="text-sm text-gray-400">Active</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <p className="text-2xl font-bold text-white">{stats.teamsCount}</p>
-              <p className="text-sm text-gray-400">Teams</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <p className="text-2xl font-bold text-orange-400 font-mono">
-                ₹{stats.walletBalance.toLocaleString()}
-              </p>
-              <p className="text-sm text-gray-400">Balance</p>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Quick Actions - Hidden on mobile (replaced by bottom navigation) */}
+      <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-4">
         <QuickAction
           icon="🎮"
           label="Browse Tournaments"
